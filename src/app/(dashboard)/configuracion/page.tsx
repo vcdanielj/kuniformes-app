@@ -188,6 +188,7 @@ export default function ConfiguracionPage() {
   const [stockThreshold, setStockThreshold] = useState("5");
 
   const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function loadData() {
@@ -207,6 +208,7 @@ export default function ConfiguracionPage() {
       setRateEuroBcv(data.settings[SETTINGS_KEYS.euroBcvRate] || String(SYSTEM_DEFAULTS.rates.euroBcv));
       setStockThreshold(data.settings[SETTINGS_KEYS.lowStockThreshold] || String(SYSTEM_DEFAULTS.lowStockThreshold));
       setErrorMsg("");
+      setSuccessMsg("");
     } catch (e) {
       console.error(e);
       setErrorMsg("Error al cargar configuraciones de base de datos.");
@@ -336,7 +338,6 @@ export default function ConfiguracionPage() {
       console.error(e);
       const message = e?.message || "Ocurrió un error.";
       setErrorMsg(message);
-      alert(message);
     } finally {
       setSubmitting(false);
     }
@@ -451,10 +452,10 @@ export default function ConfiguracionPage() {
       await updateSetting(SETTINGS_KEYS.lowStockThreshold, stockThreshold);
       await updateSetting(SETTINGS_KEYS.defaultRateSource, "paralelo");
       await loadData();
-      alert("Tasas manuales y parámetros actualizados correctamente.");
+      setSuccessMsg("Tasas manuales y parámetros actualizados correctamente.");
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || "Error al guardar configuraciones.");
+      setErrorMsg(e?.message || "Error al guardar configuraciones.");
     } finally {
       setSubmitting(false);
     }
@@ -468,10 +469,10 @@ export default function ConfiguracionPage() {
         throw new Error(res.error || "No se pudieron sincronizar las tasas.");
       }
       await loadData();
-      alert("Tasas actualizadas desde DolarAPI y cacheadas en D1.");
+      setSuccessMsg("Tasas actualizadas desde DolarAPI y cacheadas en D1.");
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || "Error al sincronizar tasas.");
+      setErrorMsg(e?.message || "Error al sincronizar tasas.");
     } finally {
       setSubmitting(false);
     }
@@ -519,6 +520,11 @@ export default function ConfiguracionPage() {
         </div>
 
         <div className="card" style={{ borderRadius: "var(--radius-5xl)", padding: 24 }}>
+          {successMsg ? (
+            <div className="alert-banner alert-banner-success" style={{ marginBottom: 16 }}>
+              <p>{successMsg}</p>
+            </div>
+          ) : null}
           {errorMsg ? (
             <div className="alert-banner alert-banner-danger" style={{ marginBottom: 16 }}>
               <p>{errorMsg}</p>

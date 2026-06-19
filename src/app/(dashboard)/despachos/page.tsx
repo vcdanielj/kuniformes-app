@@ -22,6 +22,7 @@ export default function DespachosPage() {
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   // Form State
   const [trackingNumber, setTrackingNumber] = useState("");
@@ -51,6 +52,7 @@ export default function DespachosPage() {
       }
 
       setErrorMsg("");
+      setSuccessMsg("");
     } catch (e) {
       console.error(e);
       setErrorMsg("Error al cargar despachos.");
@@ -118,6 +120,7 @@ export default function DespachosPage() {
       setCostUsd("");
       setStatus("pendiente");
       loadData();
+      setSuccessMsg("Despacho registrado correctamente.");
     } else {
       setErrorMsg(res.error || "Error al registrar despacho");
     }
@@ -127,8 +130,9 @@ export default function DespachosPage() {
     const res = await updateShipmentStatusAction(shipmentId, nextStatus);
     if (res.success) {
       loadData();
+      setSuccessMsg(`Despacho actualizado a ${nextStatus}.`);
     } else {
-      alert("Error al actualizar despacho: " + res.error);
+      setErrorMsg("Error al actualizar despacho: " + res.error);
     }
   }
 
@@ -142,6 +146,11 @@ export default function DespachosPage() {
 
   return (
     <div className="animate-fade-in">
+      {successMsg ? (
+        <div className="alert-banner alert-banner-success" style={{ marginBottom: 14 }}>
+          <p>{successMsg}</p>
+        </div>
+      ) : null}
       <div className="table-container">
         <div className="table-header-row">
           <h3>Envíos</h3>

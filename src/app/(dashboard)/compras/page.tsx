@@ -62,6 +62,7 @@ export default function ComprasPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   async function loadData() {
     try {
@@ -86,6 +87,7 @@ export default function ComprasPage() {
       }
 
       setErrorMsg("");
+      setSuccessMsg("");
     } catch (e) {
       console.error(e);
       setErrorMsg("Error al conectar base de datos.");
@@ -151,6 +153,7 @@ export default function ComprasPage() {
       setSupItems("");
       setSupContact("");
       loadData();
+      setSuccessMsg("Proveedor creado correctamente.");
     } else {
       setErrorMsg(res.error || "Error al agregar proveedor");
     }
@@ -235,6 +238,7 @@ export default function ComprasPage() {
       setPurItems([]);
       setPurNotes("");
       loadData();
+      setSuccessMsg("Compra registrada correctamente.");
     } else {
       setErrorMsg(res.error || "Error al registrar compra");
     }
@@ -246,12 +250,13 @@ export default function ComprasPage() {
       const res = await receivePurchase(purchaseId);
       if (res.success) {
         loadData();
+        setSuccessMsg("Compra recibida y stock actualizado correctamente.");
       } else {
-        alert(res.error);
+        setErrorMsg(res.error || "No se pudo recibir la compra.");
       }
     } catch (e) {
       console.error(e);
-      alert("Error al recibir compra.");
+      setErrorMsg("Error al recibir compra.");
     }
   }
 
@@ -264,6 +269,11 @@ export default function ComprasPage() {
 
   return (
     <div className="animate-fade-in">
+      {successMsg ? (
+        <div className="alert-banner alert-banner-success" style={{ marginBottom: 14 }}>
+          <p>{successMsg}</p>
+        </div>
+      ) : null}
       {/* KPIs */}
       <div className="grid-3 mb-18">
         <div className="card card-dark card-compact">

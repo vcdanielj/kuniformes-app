@@ -9,6 +9,7 @@ import {
   getInventoryModels,
 } from "@/lib/db/actions";
 import { formatUSD } from "@/lib/utils";
+import { SearchCreateSelect, type SearchCreateOption } from "@/components/ui/SearchCreateSelect";
 
 function tipoBadge(t: string): string {
   return t === "Cambio" ? "badge badge-info" : "badge badge-warning";
@@ -75,6 +76,20 @@ export default function DevolucionesPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const saleOptions: SearchCreateOption[] = salesList.map((sale) => ({
+    value: String(sale.id),
+    label: `${sale.number} · ${sale.customerName}`,
+    meta: `${sale.date} · ${formatUSD(sale.totalUsd)}`,
+    keywords: [sale.customerName, sale.number],
+  }));
+
+  const replacementSkuOptions: SearchCreateOption[] = inventorySkus.map((sku) => ({
+    value: String(sku.id),
+    label: sku.compositeCode,
+    meta: `Disponible: ${sku.stock}`,
+    keywords: [sku.compositeCode],
+  }));
 
   // Fetch sale items when selected sale changes
   useEffect(() => {
@@ -274,18 +289,14 @@ export default function DevolucionesPage() {
               {errorMsg && <div className="alert alert-danger" style={{ marginBottom: 12 }}>{errorMsg}</div>}
               
               <div className="form-group">
-                <label>Seleccionar Venta (Nota de Entrega)</label>
-                <select
+                <SearchCreateSelect
+                  label="Seleccionar Venta (Nota de Entrega)"
                   value={selectedSaleId}
-                  onChange={(e) => setSelectedSaleId(e.target.value)}
-                  required
-                >
-                  {salesList.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.number} — {s.customerName} ({formatUSD(s.totalUsd)})
-                    </option>
-                  ))}
-                </select>
+                  options={saleOptions}
+                  onChange={setSelectedSaleId}
+                  placeholder="Buscar venta o cliente"
+                  emptyMessage="No hay ventas disponibles."
+                />
               </div>
 
               <div className="form-group">
@@ -368,17 +379,14 @@ export default function DevolucionesPage() {
                               <div className="font-mono" style={{ fontSize: "var(--text-sm2)", fontWeight: 600 }}>
                                 {item.compositeCode} x{returnQuantities[item.skuId]}
                               </div>
-                              <select
+                              <SearchCreateSelect
                                 value={selection.replacementSkuId}
-                                onChange={(e) => handleReplacementChange(item.skuId, "replacementSkuId", e.target.value)}
-                              >
-                                <option value="">Selecciona reemplazo</option>
-                                {inventorySkus.map((sku) => (
-                                  <option key={sku.id} value={sku.id}>
-                                    {sku.compositeCode} (Disp.: {sku.stock})
-                                  </option>
-                                ))}
-                              </select>
+                                options={replacementSkuOptions}
+                                onChange={(selectedValue) => handleReplacementChange(item.skuId, "replacementSkuId", selectedValue)}
+                                allowClear
+                                placeholder="Selecciona reemplazo"
+                                emptyMessage="No hay SKUs disponibles."
+                              />
                               <input
                                 type="number"
                                 min="1"

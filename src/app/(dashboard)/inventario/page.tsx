@@ -7,11 +7,13 @@ import {
   adjustSkuStock,
   createModel,
   getConfigData,
+  addCategory,
   upsertModelColorImageAction,
   deleteModelColorImageAction,
 } from "@/lib/db/actions";
 import { formatUSD } from "@/lib/utils";
 import { SETTINGS_KEYS, SYSTEM_DEFAULTS } from "@/lib/app-config";
+import { SearchCreateSelect, type SearchCreateOption } from "@/components/ui/SearchCreateSelect";
 
 /* ─── Filter categories ─── */
 type FilterType = "all" | "uniformes" | "gorros" | "accesorios";
@@ -174,6 +176,7 @@ export default function InventarioPage() {
   // Config parameters from database
   const [colorsDb, setColorsDb] = useState<any[]>([]);
   const [sizesDb, setSizesDb] = useState<any[]>([]);
+  const [categoriesDb, setCategoriesDb] = useState<any[]>([]);
   const [settingsDb, setSettingsDb] = useState<Record<string, string>>({});
 
   // Modal control
@@ -214,6 +217,7 @@ export default function InventarioPage() {
       const config = await getConfigData();
       setColorsDb(config.colors);
       setSizesDb(config.sizes);
+      setCategoriesDb(config.categories.filter((category: any) => category.type === "product"));
       setSettingsDb(config.settings);
     } catch (e) {
       console.error(e);
@@ -225,6 +229,27 @@ export default function InventarioPage() {
   useEffect(() => {
     loadModels();
   }, []);
+
+  const productCategoryOptions: SearchCreateOption[] = categoriesDb.map((category: any) => ({
+    value: category.name,
+    label: category.name,
+    meta: "Categoría de producto",
+  }));
+
+  async function handleCreateProductCategory(query: string) {
+    const name = query.trim();
+    if (!name) return;
+    setSubmitting(true);
+    const res = await addCategory(name, "product");
+    setSubmitting(false);
+    if (!res.success) {
+      throw new Error(res.error || "No se pudo crear la categoría.");
+    }
+    const config = await getConfigData();
+    const productCategories = config.categories.filter((category: any) => category.type === "product");
+    setCategoriesDb(productCategories);
+    setNewModelCategory(name);
+  }
 
   async function loadDetailById(modelId: string) {
     const detail = await getModelDetail(modelId);
@@ -787,15 +812,16 @@ export default function InventarioPage() {
 
               <div className="grid-2" style={{ gap: 14, marginBottom: 14 }}>
                 <div>
-                  <label className="input-label">Categoría</label>
-                  <select className="input" value={newModelCategory} onChange={(e) => setNewModelCategory(e.target.value)}>
-                    <option value="Cuello V">Cuello V</option>
-                    <option value="Cuello Mao">Cuello Mao</option>
-                    <option value="Cuello Neru">Cuello Neru</option>
-                    <option value="Pantalón">Pantalón</option>
-                    <option value="Gorros">Gorros</option>
-                    <option value="Accesorio">Accesorio</option>
-                  </select>
+                  <SearchCreateSelect
+                    label="Categoría"
+                    value={newModelCategory}
+                    options={productCategoryOptions}
+                    onChange={setNewModelCategory}
+                    onCreate={handleCreateProductCategory}
+                    placeholder="Buscar o crear categoría"
+                    createLabel={(query) => `+ Crear categoría "${query}"`}
+                    emptyMessage="No hay categorías con ese criterio."
+                  />
                 </div>
                 <div>
                   <label className="input-label">Tipo de producto</label>

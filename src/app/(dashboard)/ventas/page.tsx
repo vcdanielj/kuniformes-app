@@ -97,6 +97,7 @@ export default function VentasPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   async function loadData() {
     try {
@@ -126,6 +127,7 @@ export default function VentasPage() {
       }
 
       setErrorMsg("");
+      setSuccessMsg("");
     } catch (e) {
       console.error(e);
       setErrorMsg("Error al cargar datos.");
@@ -246,6 +248,7 @@ export default function VentasPage() {
     setDocNotes("");
     setDocCart([]);
     setPurPayments([]);
+    setSuccessMsg("");
     resetPaymentDraft();
     setShowDocModal(true);
   }
@@ -257,6 +260,7 @@ export default function VentasPage() {
     resetPaymentDraft();
     setConvertRateSource("paralelo");
     setConvertRateVal(String(tasaParalelo));
+    setSuccessMsg("");
     setShowConvertModal(quote);
   }
 
@@ -273,18 +277,19 @@ export default function VentasPage() {
     });
 
     if (!targetSku) {
-      alert("La variación seleccionada no está disponible.");
+      setErrorMsg("La variación seleccionada no está disponible.");
       return;
     }
 
     const currentCartQty = docCart.find((item) => item.skuId === targetSku.id)?.quantity || 0;
     if (docType === "venta" && currentCartQty + qty > targetSku.stock) {
-      alert(
+      setErrorMsg(
         `No hay stock suficiente para ${targetSku.compositeCode}. Disponible: ${targetSku.stock}, ya agregado: ${currentCartQty}.`
       );
       return;
     }
 
+    setErrorMsg("");
     const existsIndex = docCart.findIndex((x) => x.skuId === targetSku.id);
     if (existsIndex > -1) {
       const updated = [...docCart];
@@ -445,6 +450,7 @@ export default function VentasPage() {
       setDocNotes("");
       resetPaymentDraft();
       loadData();
+      setSuccessMsg(`${docType === "venta" ? "Venta" : "Cotización"} registrada correctamente.`);
     } else {
       setErrorMsg(res.error || "Error al registrar documento");
     }
@@ -490,6 +496,7 @@ export default function VentasPage() {
       setPurPayments([]);
       resetPaymentDraft();
       loadData();
+      setSuccessMsg("Cotización convertida a venta correctamente.");
     } else {
       setErrorMsg(res.error || "Error al convertir cotización");
     }
@@ -511,6 +518,11 @@ export default function VentasPage() {
 
   return (
     <div className="animate-fade-in">
+      {successMsg ? (
+        <div className="alert-banner alert-banner-success" style={{ marginBottom: 14 }}>
+          <p>{successMsg}</p>
+        </div>
+      ) : null}
       {/* KPIs */}
       <div className="grid-3 mb-18">
         <div className="card card-compact">
