@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:'Hanken Grotesk',system-ui,sans-serif;background:#F4F3EF;color:#15151A;-webkit-font-smoothing:antialiased}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#D7D5CD;border-radius:8px;border:3px solid #F4F3EF}
+  ::-webkit-scrollbar-track{background:transparent}
+  input,button,select{font-family:inherit}
+  button{cursor:pointer;border:none;background:none}
+  @keyframes popIn{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+  @keyframes slideUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @keyframes ekg{to{stroke-dashoffset:0}}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+</style>
+</helmet>
+
+<div style="display:flex;height:100vh;width:100%;overflow:hidden;background:#F4F3EF">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside style="width:248px;flex:none;background:#101014;color:#EDEDEA;display:flex;flex-direction:column;padding:22px 16px">
+    <div style="display:flex;align-items:center;gap:11px;padding:6px 8px 22px">
+      <div style="width:38px;height:38px;border-radius:9px;background:#fff;display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden">
+        <img src="assets/logo.jpg" alt="K" style="width:34px;height:34px;object-fit:contain"/>
+      </div>
+      <div style="line-height:1.1">
+        <div style="font-weight:800;font-size:15px;letter-spacing:-.01em">{{ marca }}</div>
+        <div style="font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:#7E7E86;font-weight:600">Venezuela</div>
+      </div>
+    </div>
+
+    <div style="font:600 10px/1 'Hanken Grotesk';letter-spacing:.16em;text-transform:uppercase;color:#5C5C64;padding:4px 10px 9px">Operación</div>
+    <nav style="display:flex;flex-direction:column;gap:2px">
+      <button data-screen="panel" onClick="{{ navClick }}" style="{{ nav.panel }}">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
+        <span style="flex:1;text-align:left">Panel</span>
+      </button>
+      <button data-screen="inventario" onClick="{{ navClick }}" style="{{ nav.inventario }}">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>
+        <span style="flex:1;text-align:left">Inventario</span>
+        <span style="{{ badgeStyle }}">{{ lowTotal }}</span>
+      </button>
+      <button data-screen="ventas" onClick="{{ navClick }}" style="{{ nav.ventas }}">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2.2l2.3 12.3a1 1 0 001 .8h9a1 1 0 001-.8L20 7H6"/></svg>
+        <span style="flex:1;text-align:left">Ventas</span>
+      </button>
+      <button data-screen="consignacion" onClick="{{ navClick }}" style="{{ nav.consignacion }}">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="3.2"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        <span style="flex:1;text-align:left">Consignación</span>
+        <span style="{{ badgeStyle }}">{{ consPend }}</span>
+      </button>
+      <button data-screen="gastos" onClick="{{ navClick }}" style="{{ nav.gastos }}">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2v20l2-1.2L9 22l2-1.2L13 22l2-1.2L17 22l2-1.2V2l-2 1.2L15 2l-2 1.2L11 2 9 3.2 7 2 5 3.2z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>
+        <span style="flex:1;text-align:left">Gastos</span>
+      </button>
+      <button data-screen="despachos" onClick="{{ navClick }}" style="{{ nav.despachos }}">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="14" height="12" rx="1.5"/><path d="M15 8h4l3 3.5V16h-7"/><circle cx="5.5" cy="18.5" r="1.7"/><circle cx="17.5" cy="18.5" r="1.7"/></svg>
+        <span style="flex:1;text-align:left">Despachos</span>
+      </button>
+    </nav>
+
+    <div style="font:600 10px/1 'Hanken Grotesk';letter-spacing:.16em;text-transform:uppercase;color:#5C5C64;padding:20px 10px 9px">Sistema</div>
+    <button data-screen="config" onClick="{{ navClick }}" style="{{ nav.config }}">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-2.82 1.17V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9c.14.31.22.65.22 1z"/></svg>
+      <span style="flex:1;text-align:left">Configuración</span>
+    </button>
+
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:12px">
+      <div style="background:#1A1A20;border:1px solid #26262E;border-radius:11px;padding:12px 13px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+          <span style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#7E7E86;font-weight:600">Tasa BCV hoy</span>
+          <span style="width:6px;height:6px;border-radius:50%;background:#46C28E;box-shadow:0 0 0 3px rgba(70,194,142,.18)"></span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:6px">
+          <span style="font-family:'JetBrains Mono';font-weight:600;font-size:20px;letter-spacing:-.02em">{{ tasaStr }}</span>
+          <span style="font-size:11px;color:#7E7E86">Bs / USD</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:2px 4px">
+        <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3a3a44,#15151a);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;flex:none">KV</div>
+        <div style="line-height:1.2;flex:1;min-width:0">
+          <div style="font-size:12.5px;font-weight:600">Karina V.</div>
+          <div style="font-size:10.5px;color:#7E7E86">Administradora</div>
+        </div>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7E7E86" stroke-width="2" stroke-linecap="round"><path d="M16 17l5-5-5-5M21 12H9M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/></svg>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main style="flex:1;display:flex;flex-direction:column;min-width:0">
+    <!-- header -->
+    <header style="flex:none;display:flex;align-items:center;gap:18px;padding:18px 30px;border-bottom:1px solid #E5E3DC;background:#F4F3EF">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:#9A9A93;font-weight:600">{{ pageKicker }}</div>
+        <h1 style="font-size:23px;font-weight:800;letter-spacing:-.025em;margin-top:1px">{{ pageTitle }}</h1>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px">
+        <div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E5E3DC;border-radius:10px;padding:8px 13px;min-width:230px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A6A69E" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <span style="font-size:13px;color:#A6A69E">Buscar producto, venta, cliente…</span>
+        </div>
+        <div style="display:flex;background:#fff;border:1px solid #E5E3DC;border-radius:10px;padding:3px">
+          <button data-range="hoy" onClick="{{ rangeClick }}" style="{{ rng.hoy }}">Hoy</button>
+          <button data-range="semana" onClick="{{ rangeClick }}" style="{{ rng.semana }}">Semana</button>
+          <button data-range="mes" onClick="{{ rangeClick }}" style="{{ rng.mes }}">Mes</button>
+        </div>
+        <button onClick="{{ openVenta }}" style="display:flex;align-items:center;gap:7px;background:#15151A;color:#fff;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:600;white-space:nowrap" style-hover="display:flex;align-items:center;gap:7px;background:#000;color:#fff;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:600;white-space:nowrap;transform:translateY(-1px)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          Nueva venta
+        </button>
+      </div>
+    </header>
+
+    <!-- scroll content -->
+    <div style="flex:1;overflow-y:auto;padding:28px 30px 60px">
+
+      <!-- ===== PANEL ===== -->
+      <sc-if value="{{ sPanel }}" hint-placeholder-val="{{ true }}">
+        <div style="animation:fadeIn .25s ease">
+          <!-- KPI row -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:16px">
+            <div style="background:#15151A;color:#fff;border-radius:16px;padding:20px">
+              <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#86868E;font-weight:600">Ventas del mes</div>
+              <div style="font-size:32px;font-weight:800;letter-spacing:-.03em;margin-top:10px">$4.860<span style="font-size:18px;color:#86868E">,00</span></div>
+              <div style="font-family:'JetBrains Mono';font-size:12px;color:#9A9AA2;margin-top:3px">Bs 533.628,00</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:13px;font-size:12px;color:#46C28E;font-weight:600"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M7 17L17 7M9 7h8v8"/></svg>+12,4% · 142 transacciones</div>
+            </div>
+            <div style="background:#fff;border:1px solid #E5E3DC;border-radius:16px;padding:20px">
+              <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600">Ganancia neta</div>
+              <sc-if value="{{ showCosts }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:32px;font-weight:800;letter-spacing:-.03em;margin-top:10px">$1.910<span style="font-size:18px;color:#B7B7AF">,00</span></div>
+                <div style="font-size:12px;color:#6A6A63;margin-top:3px">Margen 39,3% del período</div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:13px;font-size:12px;color:#1E7A4D;font-weight:600"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M7 17L17 7M9 7h8v8"/></svg>+8,1% vs mes anterior</div>
+              </sc-if>
+              <sc-if value="{{ noCosts }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top:16px;font-size:13px;color:#A6A69E;line-height:1.4">Oculto para tu rol.<br/>Requiere costos cargados.</div>
+              </sc-if>
+            </div>
+            <div style="background:#fff;border:1px solid #E5E3DC;border-radius:16px;padding:20px">
+              <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600">Deuda consignación</div>
+              <div style="font-size:32px;font-weight:800;letter-spacing:-.03em;margin-top:10px">{{ consTotalStr }}</div>
+              <div style="font-size:12px;color:#6A6A63;margin-top:3px">{{ consPend }} consignatarias con saldo</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:13px;font-size:12px;color:#B07A1A;font-weight:600"><span style="width:7px;height:7px;border-radius:50%;background:#B07A1A"></span>Por cobrar</div>
+            </div>
+            <div style="background:#fff;border:1px solid #E5E3DC;border-radius:16px;padding:20px">
+              <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600">Gastos del mes</div>
+              <div style="font-size:32px;font-weight:800;letter-spacing:-.03em;margin-top:10px">$640<span style="font-size:18px;color:#B7B7AF">,00</span></div>
+              <div style="font-size:12px;color:#6A6A63;margin-top:3px">4 categorías</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:13px;font-size:12px;color:#C2392E;font-weight:600"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M7 7l10 10M9 17h8V9"/></svg>13,2% de la facturación</div>
+            </div>
+          </div>
+
+          <!-- charts row -->
+          <div style="display:grid;grid-template-columns:1.55fr 1fr;gap:16px;margin-bottom:16px">
+            <div style="background:#fff;border:1px solid #E5E3DC;border-radius:16px;padding:22px">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px">
+                <div>
+                  <div style="font-size:14px;font-weight:700">Facturación vs Gastos</div>
+                  <div style="font-size:12px;color:#9A9A93;margin-top:2px">Junio 2026 · por semana</div>
+                </div>
+                <div style="display:flex;gap:14px">
+                  <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#6A6A63"><span style="width:10px;height:10px;border-radius:3px;background:#15151A"></span>Facturación</div>
+                  <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#6A6A63"><span style="width:10px;height:10px;border-radius:3px;background:#D8D6CF"></span>Gastos</div>
+                </div>
+              </div>
+              <div>{{ chartFG }}</div>
+            </div>
+            <div style="background:#fff;border:1px solid #E5E3DC;border-radius:16px;padding:22px">
+              <div style="font-size:14px;font-weight:700">Métodos de pago</div>
+              <div style="font-size:12px;color:#9A9A93;margin-top:2px;margin-bottom:18px">Distribución del período</div>
+              <div>{{ chartPay }}</div>
+            </div>
+          </div>
+
+          <!-- lists row -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div style="background:#fff;border:1px solid #E5E3DC;border-radius:16px;padding:22px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+                <div style="font-size:14px;font-weight:700">Stock bajo</div>
+                <button data-screen="inventario" onClick="{{ navClick }}" style="font-size:12px;color:#6A6A63;font-weight:600">Ver inventario →</button>
+              </div>
+              <sc-for list="{{ lowSkus }}" as="s" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #F0EEE8">
+                  <span style="width:11px;height:11px;border-radius:3px;flex:none;background:{{ s.hex }}"></span>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-family:'JetBrains Mono';font-size:12.5px;font-weight:500">{{ s.codigo }}</div>
+                    <div style="font-size:12px;color:#9A9A93">{{ s.modelo }} · {{ s.color }}</div>
+                  </div>
+                  <span style="{{ s.badge }}">{{ s.stockLabel }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="background:#fff;border:1px solid #E5E3DC;border-radius:16px;padding:22px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+                <div style="font-size:14px;font-weight:700">Top productos</div>
+                <span style="font-size:12px;color:#9A9A93">Por unidades</span>
+              </div>
+              <sc-for list="{{ topProducts }}" as="t" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;gap:13px;padding:11px 0;border-top:1px solid #F0EEE8">
+                  <span style="font-family:'JetBrains Mono';font-size:13px;color:#B7B7AF;width:18px">{{ t.rank }}</span>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:13px;font-weight:600">{{ t.nombre }}</div>
+                    <div style="font-family:'JetBrains Mono';font-size:11.5px;color:#9A9A93">{{ t.codigo }}</div>
+                  </div>
+                  <div style="text-align:right">
+                    <div style="font-size:13px;font-weight:700">{{ t.unidades }} und</div>
+                    <div style="font-size:11.5px;color:#9A9A93">{{ t.monto }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== INVENTARIO LISTA ===== -->
+      <sc-if value="{{ sInvList }}" hint-placeholder-val="{{ false }}">
+        <div style="animation:fadeIn .25s ease">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+            <div style="display:flex;background:#fff;border:1px solid #E5E3DC;border-radius:10px;padding:3px">
+              <span style="background:#15151A;color:#fff;border-radius:8px;padding:7px 14px;font-size:12.5px;font-weight:600">Todos</span>
+              <span style="padding:7px 14px;font-size:12.5px;font-weight:600;color:#6A6A63">Cuello V</span>
+              <span style="padding:7px 14px;font-size:12.5px;font-weight:600;color:#6A6A63">Cuello Mao</span>
+              <span style="padding:7px 14px;font-size:12.5px;font-weight:600;color:#6A6A63">Pantalón</span>
+              <span style="padding:7px 14px;font-size:12.5px;font-weight:600;color:#6A6A63">Gorros</span>
+            </div>
+            <div style="flex:1"></div>
+            <button style="display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #E5E3DC;color:#15151A;border-radius:10px;padding:9px 14px;font-size:13px;font-weight:600"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M7 12h10M11 18h2"/></svg>Filtros</button>
+            <button style="display:flex;align-items:center;gap:7px;background:#15151A;color:#fff;border-radius:10px;padding:9px 15px;font-size:13px;font-weight:600"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Cargar mercancía</button>
+          </div>
+
+          <div style="background:#fff;border:1px solid #E5E3DC;border-radius:16px;overflow:hidden">
+            <div style="display:grid;grid-template-columns:2.4fr 1.2fr 1.4fr 1fr 1fr 40px;gap:14px;padding:14px 22px;border-bottom:1px solid #ECEAE3;font:600 10.5px/1 'Hanken Grotesk';letter-spacing:.1em;text-transform:uppercase;color:#9A9A93">
+              <span>Modelo</span><span>Categoría</span><span>Colores</span><span>Precio</span><span>Stock total</span><span></span>
+            </div>
+            <sc-for list="{{ modelsView }}" as="m" hint-placeholder-count="5">
+              <div data-model="{{ m.id }}" onClick="{{ openInvDetail }}" style="display:grid;grid-template-columns:2.4fr 1.2fr 1.4fr 1fr 1fr 40px;gap:14px;padding:15px 22px;border-bottom:1px solid #F2F0EA;align-items:center;cursor:pointer" style-hover="display:grid;grid-template-columns:2.4fr 1.2fr 1.4fr 1fr 1fr 40px;gap:14px;padding:15px 22px;border-bottom:1px solid #F2F0EA;align-items:center;cursor:pointer;background:#FAF9F6">
+                <div style="display:flex;align-items:center;gap:13px;min-width:0">
+                  <div style="width:40px;height:40px;border-radius:9px;background:{{ m.swatch }};flex:none;display:flex;align-items:center;justify-content:center"><span style="font-family:'JetBrains Mono';font-size:11px;font-weight:600;color:{{ m.swatchText }}">{{ m.idShort }}</span></div>
+                  <div style="min-width:0">
+                    <div style="font-size:13.5px;font-weight:600">{{ m.nombre }}</div>
+                    <div style="font-family:'JetBrains Mono';font-size:11px;color:#9A9A93">{{ m.comp }}</div>
+                  </div>
+                </div>
+                <span style="font-size:12.5px;color:#4A4A45">{{ m.cat }}</span>
+                <div style="display:flex;gap:4px">{{ m.dots }}</div>
+                <span style="font-size:13.5px;font-weight:700">{{ m.precioStr }}</span>
+                <div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:700">{{ m.total }}</span><span style="{{ m.stockBadge }}">{{ m.stockTag }}</span></div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C4C4BC" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== INVENTARIO DETALLE (matriz) ===== -->
+      <sc-if value="{{ sInvDetail }}" hint-placeholder-val="{{ false }}">
+        <div style="animation:fadeIn .25s ease">
+          <button onClick="{{ closeInvDetail }}" style="display:flex;align-items:center;gap:6px;font-size:13px;color:#6A6A63;font-weight:600;margin-bottom:16px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>Volver a inventario</button>
+          <div style="display:grid;grid-template-columns:1fr 300px;gap:16px">
+            <div style="background:#fff;border:1px solid #E5E3DC;border-radius:16px;padding:24px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600">Matriz de existencias</div>
+                <span style="font-size:12px;color:#9A9A93">Stock por color × talla</span>
+              </div>
+              <h2 style="font-size:22px;font-weight:800;letter-spacing:-.02em">{{ detailNombre }}</h2>
+              <div style="font-family:'JetBrains Mono';font-size:12.5px;color:#9A9A93;margin-top:2px;margin-bottom:20px">{{ detailCode }} · {{ detailCat }}</div>
+              <div style="overflow-x:auto">
+                <table style="border-collapse:collapse;width:100%;min-width:480px">
+                  <thead>
+                    <tr>
+                      <th style="text-align:left;padding:8px 10px;font:600 11px/1 'Hanken Grotesk';color:#9A9A93;text-transform:uppercase;letter-spacing:.08em">Color</th>
+                      <sc-for list="{{ detailTallas }}" as="t" hint-placeholder-count="6"><th style="padding:8px 10px;font:600 12px/1 'JetBrains Mono';color:#6A6A63;text-align:center;min-width:54px">{{ t }}</th></sc-for>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <sc-for list="{{ detailRows }}" as="r" hint-placeholder-count="4">
+                      <tr style="border-top:1px solid #F2F0EA">
+                        <td style="padding:11px 10px"><div style="display:flex;align-items:center;gap:9px"><span style="width:15px;height:15px;border-radius:4px;background:{{ r.hex }};border:1px solid rgba(0,0,0,.08)"></span><div><div style="font-size:12.5px;font-weight:600">{{ r.name }}</div><div style="font-family:'JetBrains Mono';font-size:10.5px;color:#9A9A93">{{ r.z }}</div></div></div></td>
+                        <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="6"><td style="text-align:center;padding:9px 6px"><span style="{{ c.style }}">{{ c.v }}</span></td></sc-for>
+                      </tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <div style="background:#fff;border:1px solid #E5E3DC;border-radius:16px;padding:20px">
+                <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600;margin-bottom:14px">Resumen</div>
+                <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #F2F0EA"><span style="font-size:13px;color:#6A6A63">Stock total</span><span style="font-size:14px;font-weight:700">{{ detailTotal }} und</span></div>
+                <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #F2F0EA"><span style="font-size:13px;color:#6A6A63">SKUs activos</span><span style="font-size:14px;font-weight:700">{{ detailSkus }}</span></div>
+                <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #F2F0EA"><span style="font-size:13px;color:#6A6A63">Bajo umbral</span><span style="font-size:14px;font-weight:700;color:#C2392E">{{ detailLow }}</span></div>
+                <sc-if value="{{ showCosts }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #F2F0EA"><span style="font-size:13px;color:#6A6A63">Costo unitario</span><span style="font-size:14px;font-weight:700">{{ detailCosto }}</span></div>
+                </sc-if>
+                <div style="display:flex;justify-content:space-between;padding:8px 0"><span style="font-size:13px;color:#6A6A63">Precio venta</span><span style="font-size:14px;font-weight:700">{{ detailPrecio }}</span></div>
+              </div>
+              <div style="background:#fff;border:1px solid #E5E3DC;border-radius:16px;padding:20px">
+                <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600;margin-bottom:6px">Composición</div>
+                <div style="font-size:13px;color:#4A4A45;line-height:1.5">{{ detailComp }}</div>
+              </div>
+              <button style="display:flex;align-items:center;justify-content:center;gap:7px;background:#15151A;color:#fff;border-radius:11px;padding:12px;font-size:13px;font-weight:600">Ajustar stock</button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== VENTAS ===== -->
+      <sc-if value="{{ sVentas }}" hint-placeholder-val="{{ false }}">
+        <div style="animation:fadeIn .25s ease">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:18px">
+            <div style="background:#fff;border:1px solid #E5E3DC;border-radius:14px;padding:18px"><div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600">Ventas hoy</div><div style="font-size:26px;font-weight:800;letter-spacing:-.02em;margin-top:8px">$418<span style="font-size:15px;color:#B7B7AF">,00</span></div><div style="font-family:'JetBrains Mono';font-size:11.5px;color:#9A9A93;margin-top:2px">Bs 45.896,40 · 9 ventas</div></div>
+            <div style="background:#fff;border:1px solid #E5E3DC;border-radius:14px;padding:18px"><div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600">Ticket promedio</div><div style="font-size:26px;font-weight:800;letter-spacing:-.02em;margin-top:8px">$46<span style="font-size:15px;color:#B7B7AF">,40</span></div><div style="font-size:11.5px;color:#9A9A93;margin-top:2px">2,1 ítems por venta</div></div>
+            <div style="background:#fff;border:1px solid #E5E3DC;border-radius:14px;padding:18px"><div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600">Última nota</div><div style="font-family:'JetBrains Mono';font-size:26px;font-weight:600;letter-spacing:-.02em;margin-top:8px">{{ lastNeStr }}</div><div style="font-size:11.5px;color:#9A9A93;margin-top:2px">Correlativo actual</div></div>
+          </div>
+          <div style="background:#fff;border:1px solid #E5E3DC;border-radius:16px;overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid #ECEAE3"><div style="font-size:14px;font-weight:700">Historial de ventas</div><button onClick="{{ openVenta }}" style="display:flex;align-items:center;gap:6px;background:#15151A;color:#fff;border-radius:9px;padding:8px 14px;font-size:12.5px;font-weight:600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nueva venta</button></div>
+            <div style="display:grid;grid-template-columns:1.1fr 0.8fr 2fr 0.8fr 1.2fr 1fr 1fr;gap:14px;padding:13px 22px;border-bottom:1px solid #ECEAE3;font:600 10.5px/1 'Hanken Grotesk';letter-spacing:.1em;text-transform:uppercase;color:#9A9A93">
+              <span>Nota</span><span>Fecha</span><span>Cliente</span><span>Ítems</span><span>Pago</span><span style="text-align:right">Total USD</span><span style="text-align:right">Estado</span>
+            </div>
+            <sc-for list="{{ salesView }}" as="v" hint-placeholder-count="6">
+              <div style="display:grid;grid-template-columns:1.1fr 0.8fr 2fr 0.8fr 1.2fr 1fr 1fr;gap:14px;padding:14px 22px;border-bottom:1px solid #F2F0EA;align-items:center" style-hover="display:grid;grid-template-columns:1.1fr 0.8fr 2fr 0.8fr 1.2fr 1fr 1fr;gap:14px;padding:14px 22px;border-bottom:1px solid #F2F0EA;align-items:center;background:#FAF9F6">
+                <span style="font-family:'JetBrains Mono';font-size:12.5px;font-weight:500">{{ v.n }}</span>
+                <span style="font-size:12.5px;color:#6A6A63">{{ v.fecha }}</span>
+                <span style="font-size:13px;font-weight:500">{{ v.cliente }}</span>
+                <span style="font-size:13px;color:#4A4A45">{{ v.items }}</span>
+                <span style="{{ v.payBadge }}">{{ v.metodo }}</span>
+                <span style="font-size:13.5px;font-weight:700;text-align:right">{{ v.totalStr }}</span>
+                <span style="text-align:right"><span style="{{ v.estadoBadge }}">{{ v.estado }}</span></span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== CONSIGNACIÓN ===== -->
+      <sc-if value="{{ sCons }}" hint-placeholder-val="{{ false }}">
+        <div style="animation:fadeIn .25s ease">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:18px">
+            <div style="background:#15151A;color:#fff;border-radius:14px;padding:18px"><div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#86868E;font-weight:600">Deuda total</div><div style="font-size:26px;font-weight:800;margin-top:8px">{{ consTotalStr }}</div><div style="font-size:11.5px;color:#9A9AA2;margin-top:2px">en cuenta corriente</div></div>
+            <div style="background:#fff;border:1px solid #E5E3DC;border-radius:14px;padding:18px"><div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600">Mercancía en poder</div><div style="font-size:26px;font-weight:800;margin-top:8px">42 und</div><div style="font-size:11.5px;color:#9A9A93;margin-top:2px">3 consignatarias activas</div></div>
+            <div style="background:#fff;border:1px solid #E5E3DC;border-radius:14px;padding:18px"><div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600">Vendido sin liquidar</div><div style="font-size:26px;font-weight:800;margin-top:8px">$320<span style="font-size:15px;color:#B7B7AF">,00</span></div><div style="font-size:11.5px;color:#9A9A93;margin-top:2px">pendiente de abono</div></div>
+          </div>
+          <div style="background:#fff;border:1px solid #E5E3DC;border-radius:16px;overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid #ECEAE3"><div style="font-size:14px;font-weight:700">Consignatarias</div><button style="display:flex;align-items:center;gap:6px;background:#15151A;color:#fff;border-radius:9px;padding:8px 14px;font-size:12.5px;font-weight:600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nueva entrega</button></div>
+            <sc-for list="{{ consView }}" as="c" hint-placeholder-count="3">
+              <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1.2fr 1.3fr 110px;gap:14px;padding:17px 22px;border-bottom:1px solid #F2F0EA;align-items:center">
+                <div style="display:flex;align-items:center;gap:12px"><div style="width:38px;height:38px;border-radius:50%;background:{{ c.avBg }};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:none">{{ c.ini }}</div><div><div style="font-size:13.5px;font-weight:600">{{ c.nombre }}</div><div style="font-family:'JetBrains Mono';font-size:11px;color:#9A9A93">{{ c.tel }}</div></div></div>
+                <div><div style="font-size:14px;font-weight:700">{{ c.enPoder }}</div><div style="font-size:11px;color:#9A9A93">en poder</div></div>
+                <div><div style="font-size:14px;font-weight:700">{{ c.vendido }}</div><div style="font-size:11px;color:#9A9A93">vendido</div></div>
+                <div><div style="font-size:14px;font-weight:700;color:{{ c.saldoColor }}">{{ c.saldoStr }}</div><div style="font-size:11px;color:#9A9A93">saldo</div></div>
+                <span style="{{ c.estadoBadge }}">{{ c.estado }}</span>
+                <button style="background:#15151A;color:#fff;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;justify-self:end">Abonar</button>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== GASTOS ===== -->
+      <sc-if value="{{ sGastos }}" hint-placeholder-val="{{ false }}">
+        <div style="animation:fadeIn .25s ease;display:grid;grid-template-columns:1fr 300px;gap:16px">
+          <div style="background:#fff;border:1px solid #E5E3DC;border-radius:16px;overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid #ECEAE3"><div style="font-size:14px;font-weight:700">Egresos del mes</div><button style="display:flex;align-items:center;gap:6px;background:#15151A;color:#fff;border-radius:9px;padding:8px 14px;font-size:12.5px;font-weight:600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Registrar gasto</button></div>
+            <div style="display:grid;grid-template-columns:0.7fr 2fr 1.3fr 1fr;gap:14px;padding:13px 22px;border-bottom:1px solid #ECEAE3;font:600 10.5px/1 'Hanken Grotesk';letter-spacing:.1em;text-transform:uppercase;color:#9A9A93"><span>Fecha</span><span>Concepto</span><span>Categoría</span><span style="text-align:right">Monto</span></div>
+            <sc-for list="{{ expView }}" as="g" hint-placeholder-count="5">
+              <div style="display:grid;grid-template-columns:0.7fr 2fr 1.3fr 1fr;gap:14px;padding:15px 22px;border-bottom:1px solid #F2F0EA;align-items:center">
+                <span style="font-size:12.5px;color:#6A6A63">{{ g.fecha }}</span>
+                <span style="font-size:13px;font-weight:500">{{ g.nota }}</span>
+                <span style="{{ g.catBadge }}">{{ g.cat }}</span>
+                <span style="font-size:13.5px;font-weight:700;text-align:right">{{ g.monto }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="background:#fff;border:1px solid #E5E3DC;border-radius:16px;padding:20px;height:max-content">
+            <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600;margin-bottom:4px">Total del mes</div>
+            <div style="font-size:28px;font-weight:800;letter-spacing:-.02em;margin-bottom:18px">$640,00</div>
+            <div style="font-size:12px;font-weight:600;color:#6A6A63;margin-bottom:12px">Por categoría</div>
+            <sc-for list="{{ expBreakdown }}" as="b" hint-placeholder-count="4">
+              <div style="margin-bottom:13px">
+                <div style="display:flex;justify-content:space-between;margin-bottom:5px"><span style="font-size:12.5px;color:#4A4A45">{{ b.cat }}</span><span style="font-size:12.5px;font-weight:700">{{ b.monto }}</span></div>
+                <div style="height:7px;background:#F0EEE8;border-radius:4px;overflow:hidden"><div style="height:100%;background:#15151A;border-radius:4px;width:{{ b.pct }}"></div></div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== DESPACHOS ===== -->
+      <sc-if value="{{ sDesp }}" hint-placeholder-val="{{ false }}">
+        <div style="animation:fadeIn .25s ease">
+          <div style="background:#fff;border:1px solid #E5E3DC;border-radius:16px;overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid #ECEAE3"><div style="font-size:14px;font-weight:700">Envíos</div><button style="display:flex;align-items:center;gap:6px;background:#15151A;color:#fff;border-radius:9px;padding:8px 14px;font-size:12.5px;font-weight:600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Registrar envío</button></div>
+            <div style="display:grid;grid-template-columns:1.2fr 1fr 1.1fr 1.8fr 1fr 1fr;gap:14px;padding:13px 22px;border-bottom:1px solid #ECEAE3;font:600 10.5px/1 'Hanken Grotesk';letter-spacing:.1em;text-transform:uppercase;color:#9A9A93"><span>Guía</span><span>Venta</span><span>Transportista</span><span>Destino</span><span>Costo</span><span style="text-align:right">Estado</span></div>
+            <sc-for list="{{ shipView }}" as="s" hint-placeholder-count="5">
+              <div style="display:grid;grid-template-columns:1.2fr 1fr 1.1fr 1.8fr 1fr 1fr;gap:14px;padding:15px 22px;border-bottom:1px solid #F2F0EA;align-items:center">
+                <span style="font-family:'JetBrains Mono';font-size:12.5px;font-weight:500">{{ s.guia }}</span>
+                <span style="font-family:'JetBrains Mono';font-size:12px;color:#6A6A63">{{ s.venta }}</span>
+                <span style="font-size:12.5px;font-weight:600">{{ s.transp }}</span>
+                <span style="font-size:12.5px;color:#4A4A45">{{ s.destino }}</span>
+                <span style="font-size:12.5px;color:#6A6A63">{{ s.costo }}</span>
+                <span style="text-align:right"><span style="{{ s.estadoBadge }}">{{ s.estado }}</span></span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== CONFIGURACIÓN ===== -->
+      <sc-if value="{{ sConfig }}" hint-placeholder-val="{{ false }}">
+        <div style="animation:fadeIn .25s ease;display:grid;grid-template-columns:210px 1fr;gap:16px">
+          <div style="background:#fff;border:1px solid #E5E3DC;border-radius:14px;padding:8px;height:max-content">
+            <button data-tab="colores" onClick="{{ tabClick }}" style="{{ ctab.colores }}">Colores</button>
+            <button data-tab="tallas" onClick="{{ tabClick }}" style="{{ ctab.tallas }}">Tallas</button>
+            <button data-tab="categorias" onClick="{{ tabClick }}" style="{{ ctab.categorias }}">Categorías</button>
+            <button data-tab="pagos" onClick="{{ tabClick }}" style="{{ ctab.pagos }}">Métodos de pago</button>
+            <button data-tab="transportistas" onClick="{{ tabClick }}" style="{{ ctab.transportistas }}">Transportistas</button>
+            <button data-tab="tasa" onClick="{{ tabClick }}" style="{{ ctab.tasa }}">Tasa & umbrales</button>
+          </div>
+          <div style="background:#fff;border:1px solid #E5E3DC;border-radius:16px;padding:24px;min-height:420px">
+            <!-- colores -->
+            <sc-if value="{{ tabColores }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px"><div><div style="font-size:15px;font-weight:700">Catálogo de colores</div><div style="font-size:12.5px;color:#9A9A93;margin-top:2px">Código Z · compartido entre todos los modelos</div></div><button style="background:#15151A;color:#fff;border-radius:9px;padding:8px 14px;font-size:12.5px;font-weight:600">+ Color</button></div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+                <sc-for list="{{ colorsView }}" as="c" hint-placeholder-count="6">
+                  <div style="display:flex;align-items:center;gap:12px;border:1px solid #ECEAE3;border-radius:11px;padding:12px 14px">
+                    <span style="width:34px;height:34px;border-radius:8px;background:{{ c.hex }};border:1px solid rgba(0,0,0,.08);flex:none"></span>
+                    <div><div style="font-size:13px;font-weight:600">{{ c.nombre }}</div><div style="font-family:'JetBrains Mono';font-size:11px;color:#9A9A93">{{ c.z }} · {{ c.hex }}</div></div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <!-- tallas -->
+            <sc-if value="{{ tabTallas }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:15px;font-weight:700;margin-bottom:4px">Catálogo de tallas</div><div style="font-size:12.5px;color:#9A9A93;margin-bottom:18px">Cada modelo elige cuáles aplica</div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap">
+                <sc-for list="{{ sizesView }}" as="t" hint-placeholder-count="7"><span style="font-family:'JetBrains Mono';font-size:14px;font-weight:600;border:1px solid #ECEAE3;border-radius:10px;padding:12px 20px">{{ t }}</span></sc-for>
+              </div>
+            </sc-if>
+            <!-- categorias -->
+            <sc-if value="{{ tabCategorias }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:15px;font-weight:700;margin-bottom:4px">Categorías de producto</div><div style="font-size:12.5px;color:#9A9A93;margin-bottom:18px">Configurables</div>
+              <sc-for list="{{ catsView }}" as="c" hint-placeholder-count="5"><div style="display:flex;align-items:center;justify-content:space-between;padding:13px 4px;border-bottom:1px solid #F2F0EA"><span style="font-size:13.5px;font-weight:500">{{ c.nombre }}</span><span style="font-size:12px;color:#9A9A93">{{ c.count }} modelos</span></div></sc-for>
+            </sc-if>
+            <!-- pagos -->
+            <sc-if value="{{ tabPagos }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:15px;font-weight:700;margin-bottom:4px">Métodos de pago</div><div style="font-size:12.5px;color:#9A9A93;margin-bottom:18px">Soportan pago mixto en una misma venta</div>
+              <sc-for list="{{ methodsCfg }}" as="m" hint-placeholder-count="4"><div style="display:flex;align-items:center;gap:12px;padding:14px 4px;border-bottom:1px solid #F2F0EA"><span style="width:9px;height:9px;border-radius:50%;background:#1E7A4D"></span><div style="flex:1"><div style="font-size:13.5px;font-weight:600">{{ m.nombre }}</div><div style="font-size:11.5px;color:#9A9A93">{{ m.moneda }}</div></div><span style="font-size:11px;font-weight:600;color:#1E7A4D;background:#E8F3ED;border-radius:6px;padding:4px 9px">Activo</span></div></sc-for>
+            </sc-if>
+            <!-- transportistas -->
+            <sc-if value="{{ tabTransportistas }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:15px;font-weight:700;margin-bottom:4px">Transportistas</div><div style="font-size:12.5px;color:#9A9A93;margin-bottom:18px">Disponibles para despachos</div>
+              <sc-for list="{{ carriersCfg }}" as="c" hint-placeholder-count="4"><div style="display:flex;align-items:center;justify-content:space-between;padding:14px 4px;border-bottom:1px solid #F2F0EA"><span style="font-size:13.5px;font-weight:600">{{ c.nombre }}</span><span style="{{ c.badge }}">{{ c.tag }}</span></div></sc-for>
+            </sc-if>
+            <!-- tasa -->
+            <sc-if value="{{ tabTasa }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:15px;font-weight:700;margin-bottom:18px">Tasa de cambio & umbrales</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
+                <div style="border:1px solid #ECEAE3;border-radius:12px;padding:18px"><div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600;margin-bottom:8px">Tasa BCV (auto)</div><div style="display:flex;align-items:baseline;gap:6px"><span style="font-family:'JetBrains Mono';font-size:26px;font-weight:600">{{ tasaStr }}</span><span style="font-size:12px;color:#9A9A93">Bs/USD</span></div><div style="font-size:11.5px;color:#9A9A93;margin-top:6px">Actualizada hoy 08:30 · fuente BCV</div><button style="margin-top:12px;background:#15151A;color:#fff;border-radius:8px;padding:8px 13px;font-size:12px;font-weight:600">Actualizar ahora</button></div>
+                <div style="border:1px solid #ECEAE3;border-radius:12px;padding:18px"><div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600;margin-bottom:8px">Umbral stock bajo</div><div style="display:flex;align-items:baseline;gap:6px"><span style="font-family:'JetBrains Mono';font-size:26px;font-weight:600">5</span><span style="font-size:12px;color:#9A9A93">unidades</span></div><div style="font-size:11.5px;color:#9A9A93;margin-top:6px">Global · configurable por modelo</div></div>
+              </div>
+              <div style="border:1px solid #ECEAE3;border-radius:12px;padding:18px"><div style="font-size:13px;font-weight:600;margin-bottom:4px">Datos de marca para Notas de Entrega</div><div style="font-size:12.5px;color:#9A9A93">{{ marca }} · @k_uniformesvzla · Logo cargado ✓</div></div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-if>
+
+    </div>
+  </main>
+
+  <!-- ============ MODAL NUEVA VENTA ============ -->
+  <sc-if value="{{ ventaOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;background:rgba(16,16,20,.42);backdrop-filter:blur(2px);z-index:40;display:flex;justify-content:flex-end;animation:fadeIn .2s ease">
+      <div style="width:min(960px,92vw);background:#F4F3EF;height:100%;display:flex;flex-direction:column;box-shadow:-20px 0 60px rgba(0,0,0,.2);animation:slideUp .28s cubic-bezier(.2,.8,.2,1)">
+        <div style="flex:none;display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:1px solid #E5E3DC;background:#fff">
+          <div><div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600">Registrar venta</div><div style="font-size:18px;font-weight:800;letter-spacing:-.02em">Nueva nota de entrega</div></div>
+          <button onClick="{{ closeVenta }}" style="width:36px;height:36px;border-radius:9px;background:#F4F3EF;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6A6A63" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+        </div>
+        <div style="flex:1;display:grid;grid-template-columns:1fr 360px;gap:0;overflow:hidden">
+          <!-- product picker -->
+          <div style="overflow-y:auto;padding:22px 24px;border-right:1px solid #E5E3DC">
+            <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600;margin-bottom:12px">1 · Elegir producto</div>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:22px">
+              <sc-for list="{{ pickModels }}" as="m" hint-placeholder-count="5">
+                <button data-model="{{ m.id }}" onClick="{{ pickModel }}" style="{{ m.rowStyle }}">
+                  <div style="width:36px;height:36px;border-radius:8px;background:{{ m.swatch }};flex:none;display:flex;align-items:center;justify-content:center"><span style="font-family:'JetBrains Mono';font-size:10px;font-weight:600;color:{{ m.swatchText }}">{{ m.idShort }}</span></div>
+                  <div style="flex:1;text-align:left;min-width:0"><div style="font-size:13px;font-weight:600">{{ m.nombre }}</div><div style="font-size:11.5px;color:#9A9A93">{{ m.cat }} · {{ m.total }} und</div></div>
+                  <span style="font-size:13px;font-weight:700">{{ m.precioStr }}</span>
+                </button>
+              </sc-for>
+            </div>
+
+            <sc-if value="{{ hasSelModel }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#fff;border:1px solid #E5E3DC;border-radius:14px;padding:18px;animation:popIn .25s ease">
+                <div style="font-size:13.5px;font-weight:700;margin-bottom:2px">{{ selModelNombre }}</div>
+                <div style="font-family:'JetBrains Mono';font-size:11.5px;color:#9A9A93;margin-bottom:16px">{{ selModelCode }}</div>
+                <div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#9A9A93;font-weight:600;margin-bottom:9px">Color</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+                  <sc-for list="{{ selColors }}" as="c" hint-placeholder-count="4">
+                    <button data-z="{{ c.z }}" onClick="{{ pickColor }}" style="{{ c.style }}"><span style="width:16px;height:16px;border-radius:5px;background:{{ c.hex }};border:1px solid rgba(0,0,0,.1)"></span>{{ c.name }}</button>
+                  </sc-for>
+                </div>
+                <div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#9A9A93;font-weight:600;margin-bottom:9px">Talla</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+                  <sc-for list="{{ selSizes }}" as="s" hint-placeholder-count="6">
+                    <button data-talla="{{ s.talla }}" onClick="{{ pickSize }}" style="{{ s.style }}">{{ s.talla }}<span style="font-size:10px;color:#9A9A93;margin-left:4px">{{ s.stock }}</span></button>
+                  </sc-for>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px">
+                  <div style="display:flex;align-items:center;border:1px solid #E5E3DC;border-radius:9px;overflow:hidden">
+                    <button data-dir="-1" onClick="{{ qtyStep }}" style="width:36px;height:38px;font-size:18px;color:#6A6A63">−</button>
+                    <span style="width:40px;text-align:center;font-size:15px;font-weight:700;font-family:'JetBrains Mono'">{{ selQty }}</span>
+                    <button data-dir="1" onClick="{{ qtyStep }}" style="width:36px;height:38px;font-size:18px;color:#6A6A63">+</button>
+                  </div>
+                  <button onClick="{{ addToCart }}" style="{{ addBtnStyle }}">{{ addBtnLabel }}</button>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+
+          <!-- cart + payment -->
+          <div style="display:flex;flex-direction:column;overflow:hidden;background:#fff">
+            <div style="flex:1;overflow-y:auto;padding:20px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600">2 · Carrito</div><span style="font-size:12px;color:#9A9A93">{{ cartCount }} ítems</span></div>
+              <sc-if value="{{ cartEmpty }}" hint-placeholder-val="{{ true }}">
+                <div style="border:1.5px dashed #E0DED6;border-radius:12px;padding:34px 16px;text-align:center"><svg width="34" height="20" viewBox="0 0 60 24" style="margin-bottom:10px"><path d="M0 12 H16 L21 4 L28 20 L33 8 L37 12 H60" fill="none" stroke="#D0CEC6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><div style="font-size:13px;color:#9A9A93">Aún no agregas productos</div></div>
+              </sc-if>
+              <sc-for list="{{ cartView }}" as="i" hint-placeholder-count="0">
+                <div style="display:flex;gap:11px;padding:12px 0;border-bottom:1px solid #F2F0EA;align-items:center">
+                  <span style="width:12px;height:12px;border-radius:4px;flex:none;background:{{ i.hex }};border:1px solid rgba(0,0,0,.1)"></span>
+                  <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600">{{ i.nombre }}</div><div style="font-family:'JetBrains Mono';font-size:10.5px;color:#9A9A93">{{ i.codigo }}</div></div>
+                  <div style="display:flex;align-items:center;border:1px solid #ECEAE3;border-radius:7px"><button data-key="{{ i.key }}" data-dir="-1" onClick="{{ cartStep }}" style="width:24px;height:26px;font-size:14px;color:#6A6A63">−</button><span style="width:24px;text-align:center;font-size:12.5px;font-weight:700;font-family:'JetBrains Mono'">{{ i.qty }}</span><button data-key="{{ i.key }}" data-dir="1" onClick="{{ cartStep }}" style="width:24px;height:26px;font-size:14px;color:#6A6A63">+</button></div>
+                  <span style="font-size:12.5px;font-weight:700;width:54px;text-align:right">{{ i.subtotal }}</span>
+                </div>
+              </sc-for>
+
+              <div style="margin-top:18px">
+                <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600;margin-bottom:9px">3 · Cliente <span style="text-transform:none;letter-spacing:0;font-weight:500">(opcional)</span></div>
+                <input value="{{ cliente }}" onInput="{{ setCliente }}" placeholder="Nombre o anónima…" style="width:100%;border:1px solid #E5E3DC;border-radius:9px;padding:10px 12px;font-size:13px;outline:none" style-focus="width:100%;border:1px solid #15151A;border-radius:9px;padding:10px 12px;font-size:13px;outline:none"/>
+              </div>
+
+              <div style="margin-top:18px">
+                <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9A9A93;font-weight:600;margin-bottom:9px">4 · Pago <span style="text-transform:none;letter-spacing:0;font-weight:500;color:#9A9A93">— mixto permitido</span></div>
+                <sc-for list="{{ payView }}" as="p" hint-placeholder-count="4">
+                  <div style="margin-bottom:8px">
+                    <button data-metodo="{{ p.metodo }}" onClick="{{ toggleMethod }}" style="{{ p.chipStyle }}"><span style="width:8px;height:8px;border-radius:50%;background:{{ p.dot }}"></span><span style="flex:1;text-align:left">{{ p.metodo }}</span><span style="font-size:11px;color:#9A9A93">{{ p.moneda }}</span></button>
+                    <sc-if value="{{ p.selected }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;align-items:center;gap:8px;padding:8px 2px 2px">
+                        <span style="font-size:12px;color:#9A9A93">$</span>
+                        <input data-metodo="{{ p.metodo }}" value="{{ p.amount }}" onInput="{{ payInput }}" style="flex:1;border:1px solid #E5E3DC;border-radius:8px;padding:7px 10px;font-size:13px;font-family:'JetBrains Mono';outline:none" style-focus="flex:1;border:1px solid #15151A;border-radius:8px;padding:7px 10px;font-size:13px;font-family:'JetBrains Mono';outline:none"/>
+                        <span style="font-size:11px;color:#9A9A93;width:96px;text-align:right">{{ p.bsEq }}</span>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <!-- totals footer -->
+            <div style="flex:none;border-top:1px solid #E5E3DC;padding:16px 20px;background:#FAF9F6">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:12.5px;color:#6A6A63">Total USD</span><span style="font-size:18px;font-weight:800;letter-spacing:-.01em">{{ totalUsdStr }}</span></div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:12.5px;color:#6A6A63">Total Bs <span style="font-size:10.5px">@ {{ tasaStr }}</span></span><span style="font-family:'JetBrains Mono';font-size:13.5px;font-weight:600">{{ totalBsStr }}</span></div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:12px"><span style="font-size:12.5px;color:#6A6A63">Restante por cubrir</span><span style="{{ remainStyle }}">{{ remainStr }}</span></div>
+              <button onClick="{{ confirmSale }}" style="{{ confirmStyle }}">{{ confirmLabel }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ NOTA DE ENTREGA (preview) ============ -->
+  <sc-if value="{{ notaOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;background:rgba(16,16,20,.5);backdrop-filter:blur(3px);z-index:50;display:flex;align-items:center;justify-content:center;animation:fadeIn .2s ease;padding:30px">
+      <div style="width:440px;max-height:90vh;overflow-y:auto;background:#fff;border-radius:18px;animation:popIn .3s cubic-bezier(.2,.8,.2,1);box-shadow:0 30px 80px rgba(0,0,0,.3)">
+        <div style="padding:26px 28px;border-bottom:1px dashed #E0DED6">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:40px;height:40px;border-radius:9px;background:#101014;display:flex;align-items:center;justify-content:center;overflow:hidden"><img src="assets/logo.jpg" style="width:30px;height:30px;object-fit:contain;filter:invert(1)"/></div><div><div style="font-weight:800;font-size:15px;letter-spacing:-.01em">{{ marca }}</div><div style="font-size:10.5px;color:#9A9A93;letter-spacing:.04em">Nota de Entrega · no fiscal</div></div></div>
+            <div style="text-align:right"><div style="font-family:'JetBrains Mono';font-size:15px;font-weight:600">{{ notaNe }}</div><div style="font-size:11px;color:#9A9A93">{{ notaFecha }}</div></div>
+          </div>
+          <svg width="100%" height="16" viewBox="0 0 400 16" preserveAspectRatio="none"><path d="M0 8 H150 L160 2 L172 14 L180 5 L186 8 H400" fill="none" stroke="#15151A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div style="font-size:12px;color:#6A6A63;margin-top:10px">Cliente: <span style="font-weight:600;color:#15151A">{{ notaCliente }}</span></div>
+        </div>
+        <div style="padding:18px 28px">
+          <sc-for list="{{ notaItems }}" as="i" hint-placeholder-count="2">
+            <div style="display:flex;gap:10px;padding:9px 0;border-bottom:1px solid #F4F2EC;align-items:center">
+              <span style="width:11px;height:11px;border-radius:3px;background:{{ i.hex }};flex:none;border:1px solid rgba(0,0,0,.1)"></span>
+              <div style="flex:1"><div style="font-size:12.5px;font-weight:600">{{ i.nombre }}</div><div style="font-family:'JetBrains Mono';font-size:10.5px;color:#9A9A93">{{ i.codigo }} · x{{ i.qty }}</div></div>
+              <span style="font-size:12.5px;font-weight:700">{{ i.subtotal }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="padding:8px 28px 22px">
+          <div style="display:flex;justify-content:space-between;padding:5px 0"><span style="font-size:12.5px;color:#6A6A63">Total USD</span><span style="font-size:17px;font-weight:800">{{ notaUsd }}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed #E0DED6"><span style="font-size:12.5px;color:#6A6A63">Total Bs</span><span style="font-family:'JetBrains Mono';font-size:13px;font-weight:600">{{ notaBs }}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:9px 0"><span style="font-size:12px;color:#9A9A93">Pago</span><span style="font-size:12px;font-weight:600">{{ notaPago }}</span></div>
+        </div>
+        <div style="display:flex;gap:10px;padding:0 28px 26px">
+          <button onClick="{{ closeNota }}" style="flex:1;border:1px solid #E5E3DC;border-radius:11px;padding:12px;font-size:13px;font-weight:600;color:#15151A">Cerrar</button>
+          <button style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;background:#1E7A4D;color:#fff;border-radius:11px;padding:12px;font-size:13px;font-weight:600"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>WhatsApp</button>
+          <button style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;background:#15151A;color:#fff;border-radius:11px;padding:12px;font-size:13px;font-weight:600"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>PDF</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ============ TOAST ============ -->
+  <sc-if value="{{ toastOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:11px;background:#15151A;color:#fff;border-radius:12px;padding:13px 20px;box-shadow:0 16px 40px rgba(0,0,0,.28);animation:slideUp .3s ease">
+      <span style="width:22px;height:22px;border-radius:50%;background:#1E7A4D;display:flex;align-items:center;justify-content:center;flex:none"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+      <span style="font-size:13.5px;font-weight:600">{{ toastMsg }}</span>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;marca&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;K-Uniformes&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;tasaBcv&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:109.8,&quot;min&quot;:1,&quot;max&quot;:1000,&quot;step&quot;:0.01,&quot;tsType&quot;:&quot;number&quot;},&quot;mostrarCostos&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.colors = [
+      { z: 'Z21', nombre: 'Negro', hex: '#1b1b1d' },
+      { z: 'Z22', nombre: 'Azul Rey', hex: '#1e3a8a' },
+      { z: 'Z34', nombre: 'Gris Plomo', hex: '#6b7280' },
+      { z: 'Z40', nombre: 'Rojo Vino', hex: '#7c1d2b' },
+      { z: 'Z18', nombre: 'Verde Quirófano', hex: '#2f6f5e' },
+      { z: 'Z27', nombre: 'Lila', hex: '#8b6db0' },
+      { z: 'Z12', nombre: 'Blanco', hex: '#e9eae6' },
+    ];
+    this.colorMap = {};
+    this.colors.forEach(c => { this.colorMap[c.z] = c; });
+    this.sizesAll = ['XS', 'S', 'M', 'L', 'XL', '2XL', 'Único'];
+    this.models = [
+      { id: '42168', nombre: 'Cuello V bota recta', cat: 'Cuello V', comp: '94% Poliéster · 6% Spandex', costo: 16, precio: 28, colores: ['Z21', 'Z22', 'Z34', 'Z40'], tallas: ['XS', 'S', 'M', 'L', 'XL', '2XL'] },
+      { id: '42170', nombre: 'Cuello Mao clásico', cat: 'Cuello Mao', comp: '92% Poliéster · 8% Spandex', costo: 17, precio: 30, colores: ['Z21', 'Z22', 'Z18', 'Z34'], tallas: ['S', 'M', 'L', 'XL', '2XL'] },
+      { id: '42155', nombre: 'Jogger cargo recto', cat: 'Pantalón', comp: '90% Poliéster · 10% Spandex', costo: 18, precio: 32, colores: ['Z21', 'Z34', 'Z18'], tallas: ['XS', 'S', 'M', 'L', 'XL'] },
+      { id: '51020', nombre: 'Cuello Neru femenino', cat: 'Cuello Neru', comp: '95% Poliéster · 5% Spandex', costo: 16, precio: 29, colores: ['Z40', 'Z27', 'Z22', 'Z21'], tallas: ['XS', 'S', 'M', 'L'] },
+      { id: '33010', nombre: 'Gorro quirúrgico', cat: 'Gorros', comp: '100% Algodón', costo: 3, precio: 8, colores: ['Z18', 'Z22', 'Z40', 'Z27'], tallas: ['Único'] },
+    ];
+    this.modelMap = {};
+    this.models.forEach(m => { this.modelMap[m.id] = m; });
+    this.threshold = 5;
+
+    this.sales = [
+      { n: 'NE-00184', fecha: '18 Jun', cliente: 'Dra. Marielena R.', items: 3, metodo: 'Zelle', total: 86, estado: 'Pagada' },
+      { n: 'NE-00183', fecha: '18 Jun', cliente: 'Venta anónima', items: 1, metodo: 'Efectivo', total: 28, estado: 'Pagada' },
+      { n: 'NE-00182', fecha: '17 Jun', cliente: 'Clínica Vista Salud', items: 6, metodo: 'Mixto', total: 172, estado: 'Pagada' },
+      { n: 'NE-00181', fecha: '17 Jun', cliente: 'Andreína P.', items: 2, metodo: 'Binance', total: 58, estado: 'Pagada' },
+      { n: 'NE-00180', fecha: '16 Jun', cliente: 'Venta anónima', items: 4, metodo: 'Bs', total: 116, estado: 'Pagada' },
+      { n: 'NE-00179', fecha: '16 Jun', cliente: 'Dr. Luis Méndez', items: 1, metodo: 'Zelle', total: 32, estado: 'Pagada' },
+    ];
+    this.consignees = [
+      { id: 'c1', nombre: 'Andri G.', tel: '0414-238 1190', enPoder: 14, vendido: 9, saldo: 200, estado: 'Pendiente' },
+      { id: 'c2', nombre: 'Rosángela P.', tel: '0424-771 0653', enPoder: 22, vendido: 4, saldo: 120, estado: 'Pago parcial' },
+      { id: 'c3', nombre: 'Yelitza M.', tel: '0412-509 3382', enPoder: 6, vendido: 11, saldo: 0, estado: 'Liquidado' },
+    ];
+    this.expenses = [
+      { fecha: '15 Jun', nota: 'Pauta Instagram — campaña uniformes', cat: 'Publicidad', monto: 180 },
+      { fecha: '10 Jun', nota: 'Suscripción sistema administrativo', cat: 'Sistema', monto: 45 },
+      { fecha: '08 Jun', nota: 'Flete importación lote junio', cat: 'Importación', monto: 260 },
+      { fecha: '05 Jun', nota: 'Bolsas y empaque de despacho', cat: 'Operativos', monto: 95 },
+      { fecha: '02 Jun', nota: 'Publicidad WhatsApp Business', cat: 'Publicidad', monto: 60 },
+    ];
+    this.shipments = [
+      { guia: 'MRW-88412', venta: 'NE-00182', transp: 'MRW', destino: 'Maracaibo, Zulia', costo: '$6,00', estado: 'Despachado' },
+      { guia: 'ZOOM-20571', venta: 'NE-00181', transp: 'Zoom', destino: 'Valencia, Carabobo', costo: '$5,50', estado: 'Entregado' },
+      { guia: 'MRW-88390', venta: 'NE-00180', transp: 'MRW', destino: 'Barquisimeto, Lara', costo: '$6,00', estado: 'Pendiente' },
+      { guia: 'DOM-44120', venta: 'NE-00179', transp: 'Domesa', destino: 'Mérida, Mérida', costo: '$7,00', estado: 'Despachado' },
+      { guia: 'TEAL-10934', venta: 'NE-00176', transp: 'Tealca', destino: 'Maturín, Monagas', costo: '$6,50', estado: 'Entregado' },
+    ];
+    this.carriers = [
+      { nombre: 'MRW', tag: 'Principal' }, { nombre: 'Zoom', tag: 'Principal' },
+      { nombre: 'Domesa', tag: 'Secundario' }, { nombre: 'Tealca', tag: 'Secundario' },
+    ];
+    this.methods = [
+      { metodo: 'Zelle', moneda: 'USD' }, { metodo: 'Binance', moneda: 'USDT' },
+      { metodo: 'Efectivo', moneda: 'USD' }, { metodo: 'Bolívares', moneda: 'Bs' },
+    ];
+    this.avBg = { c1: '#3a3a44', c2: '#5a4a3a', c3: '#3a4a44' };
+
+    this.state = {
+      screen: 'panel', range: 'mes', configTab: 'colores',
+      invDetail: null,
+      stock: this.buildStock(),
+      ventaOpen: false, cart: [], selModel: null, selColor: null, selSize: null, selQty: 1,
+      paySel: [], payAmt: {}, cliente: '',
+      neCounter: 184, nota: null, toast: null, salesExtra: [],
+    };
+  }
+
+  buildStock() {
+    const s = {};
+    this.models.forEach(m => {
+      s[m.id] = {};
+      m.colores.forEach((c, i) => {
+        s[m.id][c] = {};
+        m.tallas.forEach((t, j) => {
+          let v = ((parseInt(m.id) % 37) + i * 5 + j * 3) % 14;
+          if (m.cat === 'Gorros') v = 18 + ((i + j) % 3) * 9;
+          if ((i + j) % 7 === 0) v = (i + j) % 4;
+          s[m.id][c][t] = v;
+        });
+      });
+    });
+    return s;
+  }
+
+  tasa() { return this.props.tasaBcv ?? 109.80; }
+  f$(n) { return '$' + Number(n).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  fBs(n) { return 'Bs ' + Number(n).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+  modelTotal(id) {
+    const sm = this.state.stock[id]; let t = 0;
+    Object.values(sm).forEach(col => Object.values(col).forEach(v => t += v));
+    return t;
+  }
+  modelLow(id) {
+    const sm = this.state.stock[id]; let n = 0;
+    Object.values(sm).forEach(col => Object.values(col).forEach(v => { if (v < this.threshold) n++; }));
+    return n;
+  }
+
+  // ---- handlers ----
+  navClick = (e) => { this.setState({ screen: e.currentTarget.dataset.screen, invDetail: null }); };
+  rangeClick = (e) => { this.setState({ range: e.currentTarget.dataset.range }); };
+  tabClick = (e) => { this.setState({ configTab: e.currentTarget.dataset.tab }); };
+  openInvDetail = (e) => { this.setState({ invDetail: e.currentTarget.dataset.model }); };
+  closeInvDetail = () => { this.setState({ invDetail: null }); };
+
+  openVenta = () => { this.setState({ ventaOpen: true }); };
+  closeVenta = () => { this.setState({ ventaOpen: false, selModel: null, selColor: null, selSize: null, selQty: 1 }); };
+  pickModel = (e) => { this.setState({ selModel: e.currentTarget.dataset.model, selColor: null, selSize: null, selQty: 1 }); };
+  pickColor = (e) => { this.setState({ selColor: e.currentTarget.dataset.z, selSize: null }); };
+  pickSize = (e) => { this.setState({ selSize: e.currentTarget.dataset.talla }); };
+  qtyStep = (e) => {
+    const d = parseInt(e.currentTarget.dataset.dir);
+    this.setState(s => ({ selQty: Math.max(1, s.selQty + d) }));
+  };
+  addToCart = () => {
+    const { selModel, selColor, selSize, selQty } = this.state;
+    if (!selModel || !selColor || !selSize) return;
+    const m = this.modelMap[selModel];
+    const key = selModel + '-' + selColor + '-' + selSize;
+    this.setState(s => {
+      const cart = s.cart.slice();
+      const ex = cart.find(i => i.key === key);
+      if (ex) ex.qty += selQty;
+      else cart.push({ key, modelId: selModel, nombre: m.nombre, codigo: key, z: selColor, hex: this.colorMap[selColor].hex, talla: selSize, qty: selQty, precio: m.precio });
+      return { cart, selColor: null, selSize: null, selQty: 1 };
+    });
+  };
+  cartStep = (e) => {
+    const key = e.currentTarget.dataset.key, d = parseInt(e.currentTarget.dataset.dir);
+    this.setState(s => {
+      let cart = s.cart.slice();
+      const it = cart.find(i => i.key === key);
+      if (it) { it.qty += d; if (it.qty <= 0) cart = cart.filter(i => i.key !== key); }
+      return { cart };
+    });
+  };
+  setCliente = (e) => { this.setState({ cliente: e.target.value }); };
+  toggleMethod = (e) => {
+    const m = e.currentTarget.dataset.metodo;
+    this.setState(s => {
+      const sel = s.paySel.slice(); const amt = { ...s.payAmt };
+      const i = sel.indexOf(m);
+      const total = this.cartTotal(s.cart);
+      const covered = sel.reduce((a, k) => a + (amt[k] || 0), 0);
+      if (i >= 0) { sel.splice(i, 1); delete amt[m]; }
+      else { sel.push(m); amt[m] = Math.max(0, +(total - covered).toFixed(2)); }
+      return { paySel: sel, payAmt: amt };
+    });
+  };
+  payInput = (e) => {
+    const m = e.target.dataset.metodo; const v = parseFloat(e.target.value) || 0;
+    this.setState(s => ({ payAmt: { ...s.payAmt, [m]: v } }));
+  };
+  cartTotal(cart) { return cart.reduce((a, i) => a + i.precio * i.qty, 0); }
+
+  confirmSale = () => {
+    const { cart, paySel, payAmt, cliente } = this.state;
+    const total = this.cartTotal(cart);
+    const paid = paySel.reduce((a, k) => a + (payAmt[k] || 0), 0);
+    if (cart.length === 0 || Math.abs(total - paid) > 0.01) return;
+    const next = this.state.neCounter + 1;
+    const ne = 'NE-00' + next;
+    const stock = JSON.parse(JSON.stringify(this.state.stock));
+    cart.forEach(i => { stock[i.modelId][i.z][i.talla] = Math.max(0, (stock[i.modelId][i.z][i.talla] || 0) - i.qty); });
+    const pago = paySel.length === 1 ? paySel[0] : (paySel.length > 1 ? 'Mixto' : '—');
+    const notaItems = cart.map(i => ({ nombre: i.nombre, codigo: i.codigo, qty: i.qty, hex: i.hex, subtotal: this.f$(i.precio * i.qty) }));
+    const newSale = { n: ne, fecha: '18 Jun', cliente: cliente || 'Venta anónima', items: cart.reduce((a, i) => a + i.qty, 0), metodo: pago, total, estado: 'Pagada' };
+    this.setState(s => ({
+      neCounter: next, stock, ventaOpen: false,
+      salesExtra: [newSale, ...s.salesExtra],
+      cart: [], paySel: [], payAmt: {}, cliente: '', selModel: null, selColor: null, selSize: null, selQty: 1,
+      nota: { ne, fecha: '18 Jun 2026', cliente: cliente || 'Venta anónima', items: notaItems, usd: this.f$(total), bs: this.fBs(total * this.tasa()), pago },
+      toast: 'Nota ' + ne + ' generada · stock actualizado',
+    }));
+    clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: null }), 3200);
+  };
+  closeNota = () => { this.setState({ nota: null }); };
+
+  // ---- styles ----
+  navStyle(active) {
+    const base = 'display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;font-size:13.5px;font-weight:600;width:100%;transition:background .12s;';
+    return active ? base + 'background:#26262E;color:#fff' : base + 'background:transparent;color:#9A9AA2';
+  }
+  pillStyle(active) {
+    const base = 'border-radius:8px;padding:7px 13px;font-size:12.5px;font-weight:600;';
+    return active ? base + 'background:#15151A;color:#fff' : base + 'background:transparent;color:#6A6A63';
+  }
+  tabStyleS(active) {
+    const base = 'display:block;width:100%;text-align:left;padding:10px 13px;border-radius:9px;font-size:13px;font-weight:600;margin-bottom:2px;';
+    return active ? base + 'background:#15151A;color:#fff' : base + 'background:transparent;color:#6A6A63';
+  }
+  chipStyleP(active) {
+    const base = 'display:flex;align-items:center;gap:10px;width:100%;padding:11px 13px;border-radius:10px;font-size:13px;font-weight:600;border:1px solid;';
+    return active ? base + 'border-color:#15151A;background:#15151A;color:#fff' : base + 'border-color:#E5E3DC;background:#fff;color:#15151A';
+  }
+  colorChip(active) {
+    const base = 'display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:9px;font-size:12.5px;font-weight:600;border:1px solid;';
+    return active ? base + 'border-color:#15151A;background:#15151A;color:#fff' : base + 'border-color:#E5E3DC;background:#fff;color:#15151A';
+  }
+  sizeChip(active) {
+    const base = 'min-width:44px;padding:9px 12px;border-radius:9px;font-size:13px;font-weight:700;font-family:JetBrains Mono;border:1px solid;';
+    return active ? base + 'border-color:#15151A;background:#15151A;color:#fff' : base + 'border-color:#E5E3DC;background:#fff;color:#15151A';
+  }
+  estadoBadge(e) {
+    const map = {
+      'Pagada': '#1E7A4D|#E8F3ED', 'Liquidado': '#1E7A4D|#E8F3ED', 'Entregado': '#1E7A4D|#E8F3ED',
+      'Pendiente': '#B07A1A|#FBF1E0', 'Pago parcial': '#B07A1A|#FBF1E0', 'Despachado': '#2A5B8A|#E6EEF7',
+    };
+    const v = (map[e] || '#6A6A63|#F0EEE8').split('|');
+    return 'font-size:11px;font-weight:600;color:' + v[0] + ';background:' + v[1] + ';border-radius:6px;padding:4px 9px;white-space:nowrap';
+  }
+
+  renderVals() {
+    const st = this.state;
+    const marca = this.props.marca ?? 'K-Uniformes';
+    const showCosts = this.props.mostrarCostos ?? true;
+    const tasa = this.tasa();
+    const titles = {
+      panel: ['Resumen del negocio', 'Panel'],
+      inventario: ['Existencias por SKU', 'Inventario'],
+      ventas: ['Carrito y notas de entrega', 'Ventas'],
+      consignacion: ['Cuenta corriente de terceros', 'Consignación'],
+      gastos: ['Egresos del período', 'Gastos'],
+      despachos: ['Envíos y transportistas', 'Despachos'],
+      config: ['Catálogos y parámetros', 'Configuración'],
+    };
+    const screen = st.screen;
+    const navKeys = ['panel', 'inventario', 'ventas', 'consignacion', 'gastos', 'despachos', 'config'];
+    const nav = {};
+    navKeys.forEach(k => { nav[k] = this.navStyle(screen === k); });
+    const rng = {};['hoy', 'semana', 'mes'].forEach(k => { rng[k] = this.pillStyle(st.range === k); });
+    const ctab = {};['colores', 'tallas', 'categorias', 'pagos', 'transportistas', 'tasa'].forEach(k => { ctab[k] = this.tabStyleS(st.configTab === k); });
+
+    // inventory
+    const lowTotal = this.models.reduce((a, m) => a + this.modelLow(m.id), 0);
+    const consPend = this.consignees.filter(c => c.saldo > 0).length;
+    const modelsView = this.models.map(m => {
+      const dark = ['42168'].includes(m.id);
+      const firstHex = this.colorMap[m.colores[0]].hex;
+      const total = this.modelTotal(m.id);
+      const low = this.modelLow(m.id);
+      const dots = React.createElement(React.Fragment, null, ...m.colores.map((z, i) =>
+        React.createElement('span', { key: i, style: { width: '13px', height: '13px', borderRadius: '4px', background: this.colorMap[z].hex, border: '1px solid rgba(0,0,0,.08)' } })));
+      const tag = low > 0 ? low + ' bajo' : 'OK';
+      const badge = low > 0
+        ? 'font-size:10.5px;font-weight:600;color:#C2392E;background:#FBEAE8;border-radius:5px;padding:2px 7px'
+        : 'font-size:10.5px;font-weight:600;color:#1E7A4D;background:#E8F3ED;border-radius:5px;padding:2px 7px';
+      return { id: m.id, idShort: m.id, nombre: m.nombre, comp: m.comp, cat: m.cat, precioStr: this.f$(m.precio),
+        total, dots, stockTag: tag, stockBadge: badge, swatch: firstHex, swatchText: '#fff' };
+    });
+
+    // low skus list
+    const lowSkus = [];
+    this.models.forEach(m => {
+      m.colores.forEach(z => m.tallas.forEach(t => {
+        const v = st.stock[m.id][z][t];
+        if (v < this.threshold) lowSkus.push({ codigo: m.id + '-' + z + '-' + t, modelo: m.nombre, color: this.colorMap[z].nombre, hex: this.colorMap[z].hex, stock: v });
+      }));
+    });
+    lowSkus.sort((a, b) => a.stock - b.stock);
+    const lowView = lowSkus.slice(0, 5).map(s => ({
+      ...s, stockLabel: s.stock + (s.stock === 1 ? ' und' : ' und'),
+      badge: 'font-size:11px;font-weight:700;color:' + (s.stock === 0 ? '#C2392E' : '#B07A1A') + ';background:' + (s.stock === 0 ? '#FBEAE8' : '#FBF1E0') + ';border-radius:6px;padding:4px 9px;white-space:nowrap',
+    }));
+
+    // inventory detail
+    let inv = {};
+    if (st.invDetail) {
+      const m = this.modelMap[st.invDetail];
+      const rows = m.colores.map(z => ({
+        z, name: this.colorMap[z].nombre, hex: this.colorMap[z].hex,
+        cells: m.tallas.map(t => {
+          const v = st.stock[m.id][z][t];
+          const low = v < this.threshold;
+          const style = v === 0
+            ? 'display:inline-block;min-width:30px;font-family:JetBrains Mono;font-size:13px;font-weight:600;color:#C2392E;background:#FBEAE8;border-radius:6px;padding:5px 8px'
+            : low
+              ? 'display:inline-block;min-width:30px;font-family:JetBrains Mono;font-size:13px;font-weight:600;color:#B07A1A;background:#FBF1E0;border-radius:6px;padding:5px 8px'
+              : 'display:inline-block;min-width:30px;font-family:JetBrains Mono;font-size:13px;font-weight:600;color:#15151A;background:#F4F3EF;border-radius:6px;padding:5px 8px';
+          return { v, style };
+        }),
+      }));
+      inv = {
+        detailNombre: m.nombre, detailCode: m.id, detailCat: m.cat, detailComp: m.comp,
+        detailTallas: m.tallas, detailRows: rows, detailTotal: this.modelTotal(m.id),
+        detailSkus: m.colores.length * m.tallas.length, detailLow: this.modelLow(m.id),
+        detailCosto: this.f$(m.costo), detailPrecio: this.f$(m.precio),
+      };
+    }
+
+    // sales
+    const salesView = [...st.salesExtra, ...this.sales].map(v => ({
+      n: v.n, fecha: v.fecha, cliente: v.cliente, items: v.items + ' und', metodo: v.metodo,
+      totalStr: this.f$(v.total), estado: v.estado,
+      estadoBadge: this.estadoBadge(v.estado),
+      payBadge: 'font-size:11px;font-weight:600;color:#4A4A45;background:#F0EEE8;border-radius:6px;padding:4px 9px;white-space:nowrap',
+    }));
+    const lastNeStr = 'NE-00' + st.neCounter;
+
+    // consignación
+    const consTotal = this.consignees.reduce((a, c) => a + c.saldo, 0);
+    const consView = this.consignees.map(c => ({
+      ini: c.nombre.split(' ').map(w => w[0]).join('').slice(0, 2), nombre: c.nombre, tel: c.tel,
+      enPoder: c.enPoder, vendido: c.vendido, saldoStr: this.f$(c.saldo),
+      saldoColor: c.saldo > 0 ? '#B07A1A' : '#1E7A4D', estado: c.estado,
+      estadoBadge: this.estadoBadge(c.estado), avBg: this.avBg[c.id],
+    }));
+
+    // gastos
+    const expView = this.expenses.map(g => ({
+      fecha: g.fecha, nota: g.nota, cat: g.cat, monto: this.f$(g.monto),
+      catBadge: 'font-size:11px;font-weight:600;color:#4A4A45;background:#F0EEE8;border-radius:6px;padding:4px 9px;white-space:nowrap;width:max-content',
+    }));
+    const catTot = {};
+    this.expenses.forEach(g => { catTot[g.cat] = (catTot[g.cat] || 0) + g.monto; });
+    const grand = Object.values(catTot).reduce((a, b) => a + b, 0);
+    const expBreakdown = Object.entries(catTot).sort((a, b) => b[1] - a[1]).map(([cat, m]) => ({
+      cat, monto: this.f$(m), pct: Math.round(m / grand * 100) + '%',
+    }));
+
+    // despachos
+    const shipView = this.shipments.map(s => ({ ...s, estadoBadge: this.estadoBadge(s.estado) }));
+
+    // config
+    const colorsView = this.colors.map(c => ({ z: c.z, nombre: c.nombre, hex: c.hex }));
+    const catCount = {};
+    this.models.forEach(m => { catCount[m.cat] = (catCount[m.cat] || 0) + 1; });
+    const catsView = Object.entries(catCount).map(([nombre, count]) => ({ nombre, count }));
+    const methodsCfg = this.methods.map(m => ({ nombre: m.metodo, moneda: m.moneda }));
+    const carriersCfg = this.carriers.map(c => ({
+      nombre: c.nombre, tag: c.tag,
+      badge: 'font-size:11px;font-weight:600;color:' + (c.tag === 'Principal' ? '#1E7A4D' : '#6A6A63') + ';background:' + (c.tag === 'Principal' ? '#E8F3ED' : '#F0EEE8') + ';border-radius:6px;padding:4px 9px',
+    }));
+
+    // venta picker
+    const pickModels = this.models.map(m => ({
+      id: m.id, idShort: m.id, nombre: m.nombre, cat: m.cat, total: this.modelTotal(m.id), precioStr: this.f$(m.precio),
+      swatch: this.colorMap[m.colores[0]].hex, swatchText: '#fff',
+      rowStyle: 'display:flex;align-items:center;gap:12px;width:100%;padding:11px 12px;border-radius:11px;border:1px solid ' + (st.selModel === m.id ? '#15151A' : '#E5E3DC') + ';background:' + (st.selModel === m.id ? '#FAF9F6' : '#fff'),
+    }));
+    const sm = st.selModel ? this.modelMap[st.selModel] : null;
+    const selColors = sm ? sm.colores.map(z => ({ z, name: this.colorMap[z].nombre, hex: this.colorMap[z].hex, style: this.colorChip(st.selColor === z) })) : [];
+    const selSizes = sm ? sm.tallas.map(t => ({ talla: t, stock: (st.selColor ? st.stock[sm.id][st.selColor][t] : '·'), style: this.sizeChip(st.selSize === t) })) : [];
+    const canAdd = sm && st.selColor && st.selSize;
+    const addBtnStyle = 'flex:1;border-radius:9px;padding:11px;font-size:13px;font-weight:700;' + (canAdd ? 'background:#15151A;color:#fff' : 'background:#E5E3DC;color:#A6A69E;cursor:not-allowed');
+
+    // cart
+    const cartView = st.cart.map(i => ({ key: i.key, nombre: i.nombre, codigo: i.codigo, hex: i.hex, qty: i.qty, subtotal: this.f$(i.precio * i.qty) }));
+    const total = this.cartTotal(st.cart);
+    const paid = st.paySel.reduce((a, k) => a + (st.payAmt[k] || 0), 0);
+    const remain = +(total - paid).toFixed(2);
+    const payView = this.methods.map(m => {
+      const sel = st.paySel.includes(m.metodo);
+      const amt = st.payAmt[m.metodo] || 0;
+      return {
+        metodo: m.metodo, moneda: m.moneda, selected: sel,
+        dot: sel ? '#1E7A4D' : '#C4C4BC',
+        amount: sel ? amt : 0,
+        bsEq: this.fBs((sel ? amt : 0) * tasa),
+        chipStyle: this.chipStyleP(sel),
+      };
+    });
+    const canConfirm = st.cart.length > 0 && Math.abs(remain) < 0.01;
+    const confirmStyle = 'width:100%;border-radius:11px;padding:13px;font-size:14px;font-weight:700;' + (canConfirm ? 'background:#1E7A4D;color:#fff' : 'background:#E5E3DC;color:#A6A69E;cursor:not-allowed');
+    const remainStyle = 'font-size:14px;font-weight:700;color:' + (Math.abs(remain) < 0.01 ? '#1E7A4D' : (remain > 0 ? '#B07A1A' : '#C2392E'));
+
+    // charts
+    const h = React.createElement;
+    const wk = [['Sem 1', 1180, 180], ['Sem 2', 1320, 140], ['Sem 3', 1090, 160], ['Sem 4', 1270, 160]];
+    const W = 540, H = 180, maxV = 1500, pad = 18, gw = (W - pad * 2) / 4, bw = 24;
+    const els = [];
+    [1, 0.5, 0].forEach((g, gi) => {
+      const y = 18 + (H - 50) * (1 - g);
+      els.push(h('line', { key: 'gl' + gi, x1: pad, x2: W - pad, y1: y, y2: y, stroke: '#F0EEE8', strokeWidth: 1 }));
+    });
+    wk.forEach((d, i) => {
+      const cx = pad + i * gw + gw / 2;
+      const fh = (d[1] / maxV) * (H - 50), gh = (d[2] / maxV) * (H - 50);
+      els.push(h('rect', { key: 'f' + i, x: cx - bw - 2, y: H - 28 - fh, width: bw, height: fh, rx: 5, fill: '#15151A' }));
+      els.push(h('rect', { key: 'g' + i, x: cx + 2, y: H - 28 - gh, width: bw, height: gh, rx: 5, fill: '#D8D6CF' }));
+      els.push(h('text', { key: 't' + i, x: cx, y: H - 9, textAnchor: 'middle', fontSize: 11, fill: '#9A9A93', fontFamily: 'Hanken Grotesk' }, d[0]));
+    });
+    const chartFG = h('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', height: 'auto', display: 'block' } }, ...els);
+
+    const pays = [['Zelle', 42, '#15151A'], ['Binance', 24, '#4A4A52'], ['Efectivo', 20, '#8A8A82'], ['Bolívares', 14, '#C4C2BA']];
+    const prows = pays.map((p, i) => h('div', { key: i, style: { marginBottom: '15px' } },
+      h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: '6px' } },
+        h('span', { style: { fontSize: '13px', color: '#4A4A45', fontWeight: 500 } }, p[0]),
+        h('span', { style: { fontSize: '13px', fontWeight: 700 } }, p[1] + '%')),
+      h('div', { style: { height: '8px', background: '#F0EEE8', borderRadius: '5px', overflow: 'hidden' } },
+        h('div', { style: { height: '100%', width: p[1] + '%', background: p[2], borderRadius: '5px' } }))));
+    const chartPay = h('div', null, ...prows);
+
+    return {
+      marca, showCosts, noCosts: !showCosts, tasaStr: tasa.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      pageTitle: titles[screen][1], pageKicker: titles[screen][0],
+      nav, rng, ctab, navClick: this.navClick, rangeClick: this.rangeClick, tabClick: this.tabClick,
+      badgeStyle: 'font-size:10px;font-weight:700;color:#15151A;background:#fff;border-radius:20px;padding:1px 7px;min-width:18px;text-align:center',
+      lowTotal, consPend,
+      sPanel: screen === 'panel', sVentas: screen === 'ventas', sCons: screen === 'consignacion',
+      sGastos: screen === 'gastos', sDesp: screen === 'despachos', sConfig: screen === 'config',
+      sInvList: screen === 'inventario' && !st.invDetail, sInvDetail: screen === 'inventario' && !!st.invDetail,
+      chartFG, chartPay,
+      modelsView, lowSkus: lowView, openInvDetail: this.openInvDetail, closeInvDetail: this.closeInvDetail,
+      consTotalStr: this.f$(consTotal),
+      topProducts: [
+        { rank: '1', nombre: 'Cuello V bota recta', codigo: '42168', unidades: 48, monto: this.f$(1344) },
+        { rank: '2', nombre: 'Cuello Mao clásico', codigo: '42170', unidades: 31, monto: this.f$(930) },
+        { rank: '3', nombre: 'Gorro quirúrgico', codigo: '33010', unidades: 64, monto: this.f$(512) },
+        { rank: '4', nombre: 'Jogger cargo recto', codigo: '42155', unidades: 19, monto: this.f$(608) },
+      ],
+      ...inv,
+      salesView, lastNeStr, consView, expView, expBreakdown, shipView,
+      colorsView, sizesView: this.sizesAll, catsView, methodsCfg, carriersCfg,
+      tabColores: st.configTab === 'colores', tabTallas: st.configTab === 'tallas', tabCategorias: st.configTab === 'categorias',
+      tabPagos: st.configTab === 'pagos', tabTransportistas: st.configTab === 'transportistas', tabTasa: st.configTab === 'tasa',
+      // venta modal
+      ventaOpen: st.ventaOpen, openVenta: this.openVenta, closeVenta: this.closeVenta,
+      pickModels, pickModel: this.pickModel,
+      hasSelModel: !!sm, selModelNombre: sm ? sm.nombre : '', selModelCode: sm ? sm.id + ' · ' + sm.cat : '',
+      selColors, selSizes, pickColor: this.pickColor, pickSize: this.pickSize,
+      selQty: st.selQty, qtyStep: this.qtyStep, addToCart: this.addToCart,
+      addBtnStyle, addBtnLabel: canAdd ? 'Agregar al carrito' : 'Elige color y talla',
+      cartView, cartCount: st.cart.reduce((a, i) => a + i.qty, 0), cartEmpty: st.cart.length === 0,
+      cartStep: this.cartStep, cliente: st.cliente, setCliente: this.setCliente,
+      payView, toggleMethod: this.toggleMethod, payInput: this.payInput,
+      totalUsdStr: this.f$(total), totalBsStr: this.fBs(total * tasa),
+      remainStr: this.f$(remain), remainStyle, confirmStyle, confirmSale: this.confirmSale,
+      confirmLabel: canConfirm ? 'Confirmar y generar nota' : (st.cart.length === 0 ? 'Agrega productos' : 'Falta cubrir el pago'),
+      // nota
+      notaOpen: !!st.nota, closeNota: this.closeNota,
+      notaNe: st.nota ? st.nota.ne : '', notaFecha: st.nota ? st.nota.fecha : '', notaCliente: st.nota ? st.nota.cliente : '',
+      notaItems: st.nota ? st.nota.items : [], notaUsd: st.nota ? st.nota.usd : '', notaBs: st.nota ? st.nota.bs : '', notaPago: st.nota ? st.nota.pago : '',
+      // toast
+      toastOpen: !!st.toast, toastMsg: st.toast || '',
+    };
+  }
+}
+</script>
+</body>
+</html>

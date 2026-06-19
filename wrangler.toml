@@ -1,0 +1,29 @@
+name = "kuniformes-app"
+main = "worker.mjs"
+compatibility_date = "2024-12-30"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+assets = { directory = ".open-next/assets", binding = "ASSETS" }
+
+[triggers]
+crons = ["*/30 * * * *"]
+
+[[services]]
+binding = "WORKER_SELF_REFERENCE"
+service = "kuniformes-app"
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "kuniformes-db"
+database_id = "808c105e-8557-4b77-ad6d-cbbf193c72cc"
+migrations_dir = "src/lib/db/migrations"
+
+# R2 Bucket for Images and PDFs
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "kuniformes-assets"
+
+# R2 bucket used by OpenNext incremental cache.
+[[r2_buckets]]
+binding = "NEXT_INC_CACHE_R2_BUCKET"
+bucket_name = "kuniformes-assets"
