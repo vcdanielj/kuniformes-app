@@ -15,7 +15,7 @@ service = "kuniformes-app"
 [[d1_databases]]
 binding = "DB"
 database_name = "kuniformes-db"
-database_id = "808c105e-8557-4b77-ad6d-cbbf193c72cc"
+database_id = "eb70baca-4155-4bdd-bfd9-6dc14da30795"
 migrations_dir = "src/lib/db/migrations"
 
 # R2 Bucket for Images and PDFs
