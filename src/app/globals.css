@@ -1291,12 +1291,13 @@ aside::-webkit-scrollbar-thumb {
 
 /* --- Sales Composer --- */
 .sales-modal {
+  width: min(calc(100vw - 48px), 1040px);
   max-width: 1040px;
 }
 
 .sales-composer {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.9fr);
+  grid-template-columns: minmax(420px, 1.2fr) minmax(320px, 0.88fr);
   gap: 18px;
 }
 
@@ -1304,6 +1305,7 @@ aside::-webkit-scrollbar-thumb {
   background: var(--bg-subtle);
   border-radius: var(--radius-4xl);
   padding: 16px;
+  min-width: 0;
 }
 
 .sales-panel-title {
@@ -1318,6 +1320,10 @@ aside::-webkit-scrollbar-thumb {
   gap: 14px;
   align-items: center;
   margin-bottom: 14px;
+}
+
+.sales-product-preview > div:last-child {
+  min-width: 0;
 }
 
 .sales-product-image {
@@ -1524,6 +1530,9 @@ aside::-webkit-scrollbar-thumb {
   .grid-chart { grid-template-columns: 1fr; }
   .grid-2-sidebar,
   .grid-2-sidebar-wide { grid-template-columns: 1fr; }
+  .sales-composer,
+  .sales-product-preview,
+  .sales-kpi-strip { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 768px) {
@@ -1597,12 +1606,6 @@ aside::-webkit-scrollbar-thumb {
   .modal-content form {
     padding: 18px;
     max-height: calc(min(92vh, calc(100vh - 24px)) - 72px);
-  }
-
-  .sales-composer,
-  .sales-product-preview,
-  .sales-kpi-strip {
-    grid-template-columns: 1fr;
   }
 
   .modal-header,
