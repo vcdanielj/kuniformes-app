@@ -14,6 +14,15 @@ export function getDbForBindings(bindings?: { DB?: unknown } | null): DatabaseIn
     return d1Drizzle(bindings.DB as Parameters<typeof d1Drizzle>[0], { schema });
   }
 
+  const cloudflareDb = getCloudflareD1Database();
+  if (cloudflareDb) {
+    return cloudflareDb;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("No se encontro el binding DB de Cloudflare en este runtime.");
+  }
+
   return getLocalDatabase();
 }
 
