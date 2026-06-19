@@ -13,6 +13,7 @@ import {
 import { eq } from "drizzle-orm";
 import { generateDocumentPdf } from "@/lib/pdf/generator";
 import { getSessionUser } from "@/lib/auth/session";
+import { getConfigData } from "@/lib/db/actions";
 
 type JoinedDocumentItem = {
   compositeCode: string | null;
@@ -23,6 +24,10 @@ type JoinedDocumentItem = {
 type JoinedPayment = {
   name: string | null;
   amountUsd: number;
+  amountOriginal: number | null;
+  currency: string | null;
+  rateUsed: number | null;
+  rateSource: string | null;
   reference: string | null;
 };
 
@@ -43,6 +48,15 @@ export async function GET(
   }
 
   try {
+    const config = await getConfigData();
+    const brand = {
+      name: config.settings.marca || "K-Uniformes",
+      rif: config.settings.rif || "",
+      phone: config.settings.telefono || "",
+      instagram: config.settings.instagram || "",
+      logoUrl: "/assets/logo.jpg",
+    };
+
     if (type === "venta") {
       // 1. Fetch Sale
       const [saleRecord] = await db
@@ -92,6 +106,10 @@ export async function GET(
         .select({
           name: paymentMethods.name,
           amountUsd: salePayments.amountUsd,
+          amountOriginal: salePayments.amountOriginal,
+          currency: salePayments.currency,
+          rateUsed: salePayments.rateUsed,
+          rateSource: salePayments.rateSource,
           reference: salePayments.reference,
         })
         .from(salePayments)
@@ -101,6 +119,10 @@ export async function GET(
       const formattedPayments = (paymentsWithMethods as JoinedPayment[]).map((pay) => ({
         name: pay.name || "Otro",
         amountUsd: pay.amountUsd,
+        amountOriginal: pay.amountOriginal,
+        currency: pay.currency,
+        rateUsed: pay.rateUsed,
+        rateSource: pay.rateSource,
         reference: pay.reference || "",
       }));
 
@@ -113,8 +135,9 @@ export async function GET(
         totalUsd: saleRecord.totalUsd,
         rateUsed: saleRecord.rateUsed,
         rateSource: saleRecord.rateSource,
+        notes: saleRecord.notes || "",
         payments: formattedPayments,
-      });
+      }, { brand, baseUrl: _request.url });
       const pdfBody = Uint8Array.from(pdfBytes);
 
       return new Response(pdfBody, {
@@ -177,7 +200,8 @@ export async function GET(
         totalUsd: quoteRecord.totalUsd,
         rateUsed: quoteRecord.rateUsed,
         rateSource: quoteRecord.rateSource,
-      });
+        notes: quoteRecord.notes || "",
+      }, { brand, baseUrl: _request.url });
       const pdfBody = Uint8Array.from(pdfBytes);
 
       return new Response(pdfBody, {

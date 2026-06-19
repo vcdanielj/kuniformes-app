@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getShipmentsData, createShipmentAction, updateShipmentStatusAction, getSalesAndQuotesData, getConfigData } from "@/lib/db/actions";
+import { getShipmentsData, createShipmentAction, updateShipmentStatusAction, getSalesAndQuotesData, getConfigData, addCarrier } from "@/lib/db/actions";
 import { formatUSD } from "@/lib/utils";
+import { SearchCreateSelect, type SearchCreateOption } from "@/components/ui/SearchCreateSelect";
 
 function estadoBadge(e: string): string {
   if (e === "Entregado") return "badge badge-success";
@@ -61,6 +62,37 @@ export default function DespachosPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const saleOptions: SearchCreateOption[] = salesList.map((sale) => ({
+    value: String(sale.id),
+    label: `${sale.number} · ${sale.customerName}`,
+    meta: `${sale.date} · ${formatUSD(sale.totalUsd)}`,
+    keywords: [sale.customerName, sale.number],
+  }));
+
+  const carrierOptions: SearchCreateOption[] = carriersList.map((carrier) => ({
+    value: String(carrier.id),
+    label: carrier.name,
+    meta: carrier.tag,
+    keywords: [carrier.tag],
+  }));
+
+  async function handleCreateCarrierFromSearch(query: string) {
+    const name = query.trim();
+    if (!name) return;
+    setSubmitting(true);
+    const res = await addCarrier(name, "Principal");
+    const config = await getConfigData();
+    setCarriersList(config.carriers);
+    setSubmitting(false);
+    if (!res.success) {
+      throw new Error(res.error || "No se pudo crear el transportista.");
+    }
+    const created = config.carriers.find((carrier: any) => carrier.name.toLowerCase() === name.toLowerCase());
+    if (created) {
+      setCarrierId(String(created.id));
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -182,35 +214,29 @@ export default function DespachosPage() {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Venta Relacionada</label>
-                  <select
+                  <SearchCreateSelect
+                    label="Venta Relacionada"
                     value={saleId}
-                    onChange={(e) => setSaleId(e.target.value)}
-                    required
-                  >
-                    {salesList.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.number} — {s.customerName}
-                      </option>
-                    ))}
-                  </select>
+                    options={saleOptions}
+                    onChange={setSaleId}
+                    placeholder="Buscar venta o cliente"
+                    emptyMessage="No hay ventas disponibles."
+                  />
                 </div>
               </div>
 
               <div className="grid-2" style={{ gap: 12 }}>
                 <div className="form-group">
-                  <label>Transportista</label>
-                  <select
+                  <SearchCreateSelect
+                    label="Transportista"
                     value={carrierId}
-                    onChange={(e) => setCarrierId(e.target.value)}
-                    required
-                  >
-                    {carriersList.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                    options={carrierOptions}
+                    onChange={setCarrierId}
+                    onCreate={handleCreateCarrierFromSearch}
+                    placeholder="Buscar o crear transportista"
+                    createLabel={(query) => `+ Crear transportista "${query}"`}
+                    emptyMessage="No hay transportistas con ese criterio."
+                  />
                 </div>
                 <div className="form-group">
                   <label>Estado Inicial</label>

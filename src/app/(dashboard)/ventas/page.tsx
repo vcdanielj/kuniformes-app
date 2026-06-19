@@ -12,6 +12,7 @@ import {
 } from "@/lib/db/actions";
 import { formatBs, formatRate, formatUSD } from "@/lib/utils";
 import { SETTINGS_KEYS, SYSTEM_DEFAULTS } from "@/lib/app-config";
+import { SearchCreateSelect, type SearchCreateOption } from "@/components/ui/SearchCreateSelect";
 
 type FxSource = "paralelo" | "bcv" | "manual";
 
@@ -94,11 +95,6 @@ export default function VentasPage() {
   const [payAmountOriginal, setPayAmountOriginal] = useState("");
   const [payRef, setPayRef] = useState("");
 
-  // CRM Inline Client Creation
-  const [showClientInline, setShowClientInline] = useState(false);
-  const [newClientName, setNewClientName] = useState("");
-  const [newClientPhone, setNewClientPhone] = useState("");
-
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -165,6 +161,46 @@ export default function VentasPage() {
       setSelectedSizeId(String(activeSkusForColor[0].sizeId || ""));
     }
   }, [selectedColorId, selectedModelId]);
+
+  const customerOptions: SearchCreateOption[] = customersList.map((customer: any) => ({
+    value: String(customer.id),
+    label: customer.name,
+    meta: customer.phone || "Sin telefono",
+    keywords: [customer.phone || "", customer.notes || ""],
+  }));
+
+  const modelOptions: SearchCreateOption[] = modelsList.map((model: any) => ({
+    value: String(model.id),
+    label: `${model.id} · ${model.name}`,
+    meta: `${model.category} · ${model.totalStock} und`,
+    keywords: [model.id, model.name, model.category, ...(model.colorCodes || [])],
+  }));
+
+  const paymentMethodOptions: SearchCreateOption[] = (configDb?.paymentMethods || [])
+    .filter((method: any) => method.active)
+    .map((method: any) => ({
+      value: String(method.id),
+      label: method.name,
+      meta: method.currency,
+      keywords: [method.currency, method.name],
+    }));
+
+  const selectedColorData = activeModelColors.find((color: any) => String(color.id) === selectedColorId) || null;
+  const uniqueSizeOptions = Array.from(
+    new Map<string, { value: string; label: string; stock: number }>(
+      activeSkusForColor.map((sku: any) => [
+        String(sku.sizeId || ""),
+        {
+          value: String(sku.sizeId || ""),
+          label:
+            activeModel?.type === "sin_tallas"
+              ? "Unica"
+              : configDb?.sizes.find((size: any) => size.id === sku.sizeId)?.name || "Talla",
+          stock: sku.stock,
+        },
+      ])
+    ).values()
+  );
 
   if (loading) {
     return (
@@ -333,26 +369,24 @@ export default function VentasPage() {
   const paymentsTotalUsd = purPayments.reduce((sum, p) => sum + p.amountUsd, 0);
   const paymentRemainingUsd = cartTotalUsd - paymentsTotalUsd;
 
-  // CRM Inline
-  async function handleCreateClientInline(e: React.MouseEvent) {
-    e.preventDefault();
-    if (!newClientName) return;
+  async function handleCreateCustomerFromSearch(query: string) {
+    const name = query.trim();
+    if (!name) return;
     setSubmitting(true);
-    const res = await createCustomerAction(newClientName, newClientPhone);
-    setSubmitting(true); // reload
+    const res = await createCustomerAction(name, "");
     const freshCusts = await getCustomers();
     setCustomersList(freshCusts);
     setSubmitting(false);
 
     if (res.success) {
-      const created = freshCusts.find((c: any) => c.name === newClientName);
-      if (created) setDocCustomerId(String(created.id));
-      setShowClientInline(false);
-      setNewClientName("");
-      setNewClientPhone("");
-    } else {
-      alert("Error al crear cliente.");
+      const created = freshCusts.find((customer: any) => customer.name.toLowerCase() === name.toLowerCase());
+      if (created) {
+        setDocCustomerId(String(created.id));
+      }
+      return;
     }
+
+    throw new Error(res.error || "Error al crear cliente.");
   }
 
   // Document Submission
@@ -590,7 +624,7 @@ export default function VentasPage() {
       {/* --- NUEVA VENTA / COTIZACION MODAL --- */}
       {showDocModal && (
         <div className="modal-backdrop">
-          <div className="modal" style={{ maxWidth: 660 }}>
+          <div className="modal sales-modal">
             <div className="modal-header">
               <h2>Registrar Documento Comercial</h2>
               <button className="modal-close" onClick={() => setShowDocModal(false)}>×</button>
@@ -607,35 +641,18 @@ export default function VentasPage() {
                 </div>
               </div>
 
-              {/* Customer Selector & CRM Link */}
               <div style={{ marginBottom: 14 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <label className="input-label">Cliente (CRM)</label>
-                  <button type="button" style={{ fontSize: "12px", color: "var(--text-tertiary)", fontWeight: 600 }} onClick={() => setShowClientInline(!showClientInline)}>
-                    {showClientInline ? "Cancelar" : "+ Nuevo cliente"}
-                  </button>
-                </div>
-
-                {showClientInline ? (
-                  <div style={{ background: "var(--bg-subtle)", padding: 12, borderRadius: 8, display: "flex", gap: 10, alignItems: "flex-end" }}>
-                    <div style={{ flex: 1 }}>
-                      <label className="input-label" style={{ fontSize: 10, marginBottom: 2 }}>Nombre</label>
-                      <input className="input" type="text" placeholder="Dr. Luis Méndez" value={newClientName} onChange={(e) => setNewClientName(e.target.value)} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <label className="input-label" style={{ fontSize: 10, marginBottom: 2 }}>Teléfono</label>
-                      <input className="input" type="text" placeholder="0412-555-5555" value={newClientPhone} onChange={(e) => setNewClientPhone(e.target.value)} />
-                    </div>
-                    <button type="button" className="btn btn-primary btn-sm" style={{ height: "40px" }} onClick={handleCreateClientInline}>Crear</button>
-                  </div>
-                ) : (
-                  <select className="input" value={docCustomerId} onChange={(e) => setDocCustomerId(e.target.value)}>
-                    <option value="">Venta Anónima / Sin Registrar</option>
-                    {customersList.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.phone || "Sin tlf"})</option>
-                    ))}
-                  </select>
-                )}
+                <SearchCreateSelect
+                  label="Cliente (CRM)"
+                  value={docCustomerId}
+                  options={customerOptions}
+                  onChange={setDocCustomerId}
+                  onCreate={handleCreateCustomerFromSearch}
+                  allowClear
+                  placeholder="Buscar cliente por nombre o telefono"
+                  createLabel={(query) => `+ Crear cliente "${query}"`}
+                  emptyMessage="No hay clientes con ese criterio."
+                />
               </div>
 
               <div className="grid-2" style={{ gap: 14, marginBottom: 14 }}>
@@ -661,95 +678,142 @@ export default function VentasPage() {
 
               <div className="divider" style={{ margin: "16px 0" }} />
 
-              {/* Item Adder */}
-              <div style={{ background: "var(--bg-subtle)", padding: 14, borderRadius: "var(--radius-3xl)", marginBottom: 14 }}>
-                <h4 style={{ fontSize: "var(--text-base2)", fontWeight: 700, marginBottom: 10 }}>Agregar Artículo</h4>
-                <div className="responsive-table-scroll">
-                <div style={{ display: "grid", gridTemplateColumns: "1.8fr 1.2fr 1fr 1fr 1.1fr auto", gap: 10, alignItems: "flex-end", minWidth: 720 }}>
-                  <div>
-                    <label className="input-label" style={{ marginBottom: 4 }}>Modelo</label>
-                    <select className="input" value={selectedModelId} onChange={(e) => setSelectedModelId(e.target.value)}>
-                      {modelsList.map((m) => (
-                        <option key={m.id} value={m.id}>{m.id} - {m.name}</option>
-                      ))}
-                    </select>
+              <div className="sales-composer" style={{ marginBottom: 14 }}>
+                <div className="sales-panel">
+                  <div className="sales-panel-title">Agregar artículo</div>
+                  <div style={{ marginBottom: 14 }}>
+                    <SearchCreateSelect
+                      label="Producto"
+                      value={selectedModelId}
+                      options={modelOptions}
+                      onChange={setSelectedModelId}
+                      placeholder="Buscar por código, nombre o categoría"
+                      emptyMessage="No hay modelos que coincidan."
+                    />
                   </div>
-                  <div>
-                    <label className="input-label" style={{ marginBottom: 4 }}>Color</label>
-                    <select className="input" value={selectedColorId} onChange={(e) => setSelectedColorId(e.target.value)}>
-                      {activeModelColors.map((c: any) => (
-                        <option key={c.id} value={c.id}>{c.code} - {c.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="input-label" style={{ marginBottom: 4 }}>Talla</label>
-                    <select className="input" value={selectedSizeId} onChange={(e) => setSelectedSizeId(e.target.value)} disabled={activeModel?.type === "sin_tallas"}>
-                      {activeModel?.type === "sin_tallas" ? (
-                        <option value="">Única</option>
-                      ) : (
-                        activeSkusForColor.map((s: any) => (
-                          <option key={s.sizeId} value={s.sizeId || ""}>{configDb?.sizes.find((x: any) => x.id === s.sizeId)?.name || "M"}</option>
-                        ))
-                      )}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="input-label" style={{ marginBottom: 4 }}>Cant.</label>
-                    <input className="input" type="number" min="1" value={itemQty} onChange={(e) => setItemQty(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="input-label" style={{ marginBottom: 4 }}>Precio u.</label>
-                    <input className="input" type="number" min="0.5" step="0.5" value={itemPrice} onChange={(e) => setItemPrice(e.target.value)} />
-                  </div>
-                  <button type="button" className="btn btn-secondary" style={{ padding: "10px 12px" }} onClick={handleAddToCart}>
-                    Agregar
-                  </button>
-                </div>
-                </div>
-              </div>
 
-              {/* Cart List */}
-              <div style={{ marginBottom: 14 }}>
-                <label className="input-label" style={{ marginBottom: 6 }}>Artículos agregados</label>
-                {docCart.length === 0 ? (
-                  <div style={{ fontSize: "var(--text-base)", color: "var(--text-muted)", padding: "12px 0", borderBottom: "1px solid var(--border-light)" }}>
-                    Carrito vacío.
-                  </div>
-                ) : (
-                  <div style={{ maxHeight: 150, overflowY: "auto" }}>
-                    {docCart.map((item, idx) => (
-                      <div key={idx} style={{
-                        display: "flex", justifyContent: "space-between", alignItems: "center",
-                        padding: "6px 12px", borderBottom: "1px solid var(--border-light)",
-                        background: "#fff", borderRadius: 8, marginBottom: 4,
-                      }}>
-                        <span className="font-mono" style={{ fontSize: "var(--text-sm2)", fontWeight: 600 }}>{item.code}</span>
-                        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-                          <span style={{ fontSize: "var(--text-sm)", color: "var(--text-secondary)" }}>({item.stock} disp)</span>
-                          <span style={{ fontSize: "var(--text-base2)", color: "var(--text-secondary)" }}>{item.quantity}u · {formatUSD(item.unitPrice)}</span>
-                          <span style={{ fontSize: "var(--text-md)", fontWeight: 700 }}>{formatUSD(item.quantity * item.unitPrice)}</span>
-                          <button type="button" className="btn-icon" style={{ color: "var(--danger)", padding: 4 }} onClick={() => handleRemoveFromCart(idx)}>
-                            {trashIcon}
-                          </button>
-                        </div>
+                  <div className="sales-product-preview">
+                    <div className="sales-product-image">
+                      {selectedColorData?.imageUrl ? (
+                        <img src={selectedColorData.imageUrl} alt={selectedColorData.name} />
+                      ) : (
+                        <span className="font-mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>K-UNIFORMES</span>
+                      )}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "var(--text-2xl)", fontWeight: 800 }}>
+                        {activeModel?.name || "Selecciona un producto"}
                       </div>
-                    ))}
-                  </div>
-                )}
-                
-                {/* Total box */}
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 20, marginTop: 10, paddingRight: 12 }}>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "var(--text-xs2)", color: "var(--text-muted)" }}>Total en Bolívares</div>
-                    <div className="font-mono" style={{ fontSize: "var(--text-lg)", fontWeight: 700 }}>
-                      {formatBs(cartTotalBs)}
+                      <div className="font-mono" style={{ fontSize: "var(--text-sm2)", color: "var(--text-muted)", marginTop: 4 }}>
+                        {activeModel ? `${activeModel.id} · ${activeModel.category}` : "Sin selección"}
+                      </div>
+                      <div style={{ fontSize: "var(--text-sm2)", color: "var(--text-secondary)", marginTop: 8 }}>
+                        {selectedColorData ? `${selectedColorData.name} (${selectedColorData.code})` : "Elige color y talla para agregar rápido al carrito."}
+                      </div>
                     </div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "var(--text-xs2)", color: "var(--text-muted)" }}>Total USD</div>
-                    <div style={{ fontSize: "var(--text-2xl)", fontWeight: 800 }}>
-                      {formatUSD(cartTotalUsd)}
+
+                  <div style={{ marginBottom: 12 }}>
+                    <label className="input-label" style={{ marginBottom: 6 }}>Color</label>
+                    <div className="sales-color-grid">
+                      {activeModelColors.map((color: any) => (
+                        <button
+                          key={color.id}
+                          type="button"
+                          className={`sales-choice-chip ${selectedColorId === String(color.id) ? "is-active" : ""}`}
+                          onClick={() => setSelectedColorId(String(color.id))}
+                        >
+                          <span className="color-swatch" style={{ background: color.hex, borderColor: selectedColorId === String(color.id) ? "rgba(255,255,255,.4)" : "var(--border-subtle)" }} />
+                          {color.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 14 }}>
+                    <label className="input-label" style={{ marginBottom: 6 }}>Talla</label>
+                    <div className="sales-size-grid">
+                      {uniqueSizeOptions.map((size) => (
+                        <button
+                          key={size.value || "unica"}
+                          type="button"
+                          className={`sales-choice-chip ${selectedSizeId === size.value ? "is-active" : ""} ${size.stock <= 0 ? "is-disabled" : ""}`}
+                          onClick={() => setSelectedSizeId(size.value)}
+                        >
+                          {size.label} <span style={{ fontSize: "var(--text-sm2)", opacity: 0.75 }}>{size.stock} und</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid-2" style={{ gap: 12, alignItems: "end" }}>
+                    <div>
+                      <label className="input-label" style={{ marginBottom: 4 }}>Cantidad</label>
+                      <input className="input" type="number" min="1" value={itemQty} onChange={(e) => setItemQty(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="input-label" style={{ marginBottom: 4 }}>Precio unitario</label>
+                      <input className="input" type="number" min="0.5" step="0.5" value={itemPrice} onChange={(e) => setItemPrice(e.target.value)} />
+                    </div>
+                  </div>
+                  <button type="button" className="btn btn-primary" style={{ marginTop: 14, width: "100%" }} onClick={handleAddToCart}>
+                    {plusIcon} Agregar al carrito
+                  </button>
+                </div>
+
+                <div className="sales-panel">
+                  <div className="sales-panel-title">Resumen rápido</div>
+                  <div className="sales-kpi-strip">
+                    <div className="sales-kpi-card">
+                      <div className="sales-kpi-card-label">Stock actual</div>
+                      <div className="sales-kpi-card-value">
+                        {activeSkusForColor.find((sku: any) => String(sku.sizeId || "") === selectedSizeId)?.stock ?? activeModel?.totalStock ?? 0}
+                      </div>
+                    </div>
+                    <div className="sales-kpi-card">
+                      <div className="sales-kpi-card-label">Precio base</div>
+                      <div className="sales-kpi-card-value">{formatUSD(activeModel?.basePrice || 0)}</div>
+                    </div>
+                    <div className="sales-kpi-card">
+                      <div className="sales-kpi-card-label">Carrito</div>
+                      <div className="sales-kpi-card-value">{docCart.length} items</div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 16 }}>
+                    <label className="input-label" style={{ marginBottom: 6 }}>Artículos agregados</label>
+                    {docCart.length === 0 ? (
+                      <div style={{ fontSize: "var(--text-base)", color: "var(--text-muted)", padding: "12px 0" }}>
+                        Carrito vacío.
+                      </div>
+                    ) : (
+                      <div style={{ maxHeight: 220, overflowY: "auto" }}>
+                        {docCart.map((item, idx) => (
+                          <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderBottom: "1px solid var(--border-light)", background: "#fff", borderRadius: 8, marginBottom: 6 }}>
+                            <div>
+                              <div className="font-mono" style={{ fontSize: "var(--text-sm2)", fontWeight: 600 }}>{item.code}</div>
+                              <div style={{ fontSize: "var(--text-sm2)", color: "var(--text-muted)" }}>{item.quantity}u · {formatUSD(item.unitPrice)} · {item.stock} disp</div>
+                            </div>
+                            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                              <span style={{ fontSize: "var(--text-md)", fontWeight: 700 }}>{formatUSD(item.quantity * item.unitPrice)}</span>
+                              <button type="button" className="btn-icon" style={{ color: "var(--danger)", padding: 4 }} onClick={() => handleRemoveFromCart(idx)}>
+                                {trashIcon}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 12 }}>
+                      <div>
+                        <div style={{ fontSize: "var(--text-xs2)", color: "var(--text-muted)" }}>Total en Bolívares</div>
+                        <div className="font-mono" style={{ fontSize: "var(--text-lg)", fontWeight: 700 }}>{formatBs(cartTotalBs)}</div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: "var(--text-xs2)", color: "var(--text-muted)" }}>Total USD</div>
+                        <div style={{ fontSize: "var(--text-2xl)", fontWeight: 800 }}>{formatUSD(cartTotalUsd)}</div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -763,12 +827,14 @@ export default function VentasPage() {
                   <div className="responsive-table-scroll">
                   <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1.5fr auto", gap: 10, alignItems: "flex-end", marginBottom: 12, minWidth: 620 }}>
                     <div>
-                      <label className="input-label" style={{ marginBottom: 4 }}>Método de pago</label>
-                      <select className="input" value={payMethodId} onChange={(e) => setPayMethodId(e.target.value)}>
-                        {configDb?.paymentMethods.filter((p: any) => p.active).map((p: any) => (
-                          <option key={p.id} value={p.id}>{p.name} ({p.currency})</option>
-                        ))}
-                      </select>
+                      <SearchCreateSelect
+                        label="Método de pago"
+                        value={payMethodId}
+                        options={paymentMethodOptions}
+                        onChange={setPayMethodId}
+                        placeholder="Buscar método"
+                        emptyMessage="Sin métodos activos."
+                      />
                     </div>
                     <div>
                       <label className="input-label" style={{ marginBottom: 4 }}>
@@ -866,12 +932,14 @@ export default function VentasPage() {
                 <div className="responsive-table-scroll">
                 <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1.2fr auto", gap: 10, alignItems: "flex-end", marginBottom: 12, minWidth: 580 }}>
                   <div>
-                    <label className="input-label" style={{ marginBottom: 4 }}>Método</label>
-                    <select className="input" value={payMethodId} onChange={(e) => setPayMethodId(e.target.value)}>
-                      {configDb?.paymentMethods.filter((p: any) => p.active).map((p: any) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
+                    <SearchCreateSelect
+                      label="Método"
+                      value={payMethodId}
+                      options={paymentMethodOptions}
+                      onChange={setPayMethodId}
+                      placeholder="Buscar método"
+                      emptyMessage="Sin métodos activos."
+                    />
                   </div>
                   <div>
                     <label className="input-label" style={{ marginBottom: 4 }}>

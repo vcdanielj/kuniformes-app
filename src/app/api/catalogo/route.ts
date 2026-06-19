@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getInventoryModels } from "@/lib/db/actions";
+import { getConfigData, getInventoryModels } from "@/lib/db/actions";
 import { generateCatalogPdf } from "@/lib/pdf/generator";
 import { getSessionUser } from "@/lib/auth/session";
 
@@ -15,9 +15,18 @@ export async function GET(request: NextRequest) {
     const showPrices = allowPrices && searchParams.get("showPrices") !== "false";
     
     // Fetch models List from DB
-    const modelsList = await getInventoryModels();
+    const [modelsList, config] = await Promise.all([getInventoryModels(), getConfigData()]);
 
-    const pdfBytes = await generateCatalogPdf(modelsList, showPrices);
+    const pdfBytes = await generateCatalogPdf(modelsList, showPrices, {
+      brand: {
+        name: config.settings.marca || "K-Uniformes",
+        rif: config.settings.rif || "",
+        phone: config.settings.telefono || "",
+        instagram: config.settings.instagram || "",
+        logoUrl: "/assets/logo.jpg",
+      },
+      baseUrl: request.url,
+    });
     const pdfBody = Uint8Array.from(pdfBytes);
 
     return new Response(pdfBody, {

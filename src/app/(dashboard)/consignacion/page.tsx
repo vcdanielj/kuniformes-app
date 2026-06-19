@@ -13,6 +13,7 @@ import {
   getConfigData,
 } from "@/lib/db/actions";
 import { formatUSD } from "@/lib/utils";
+import { SearchCreateSelect, type SearchCreateOption } from "@/components/ui/SearchCreateSelect";
 
 const plusIcon = (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
@@ -132,6 +133,27 @@ export default function ConsignacionPage() {
     }
   }, [selectedColorId, selectedModelId]);
 
+  const consigneeOptions: SearchCreateOption[] = consigneesList.map((consignee) => ({
+    value: String(consignee.id),
+    label: consignee.name,
+    meta: consignee.location || consignee.contact || "Sin ubicacion",
+    keywords: [consignee.contact || "", consignee.location || ""],
+  }));
+
+  const modelOptions: SearchCreateOption[] = modelsList.map((model) => ({
+    value: String(model.id),
+    label: `${model.id} · ${model.name}`,
+    meta: `${model.category} · ${model.totalStock} und`,
+    keywords: [model.category, model.name, model.id],
+  }));
+
+  const paymentMethodOptions: SearchCreateOption[] = paymentMethodsList.map((method) => ({
+    value: String(method.id),
+    label: method.name,
+    meta: method.currency,
+    keywords: [method.currency],
+  }));
+
   // Cart item management
   function handleAddToCart() {
     if (!selectedModelId || !selectedColorId) return;
@@ -201,6 +223,23 @@ export default function ConsignacionPage() {
       loadData();
     } else {
       setErrorMsg(res.error || "Error al registrar consignataria");
+    }
+  }
+
+  async function handleCreateConsigneeFromSearch(query: string) {
+    const name = query.trim();
+    if (!name) return;
+    setSubmitting(true);
+    const res = await createConsigneeAction(name, "", "");
+    const freshData = await getConsigneesData();
+    setConsigneesList(freshData);
+    setSubmitting(false);
+    if (!res.success) {
+      throw new Error(res.error || "Error al registrar consignataria.");
+    }
+    const created = freshData.find((consignee: any) => consignee.name.toLowerCase() === name.toLowerCase());
+    if (created) {
+      setLotConsigneeId(String(created.id));
     }
   }
 
@@ -487,18 +526,16 @@ export default function ConsignacionPage() {
               
               <div className="grid-2" style={{ gap: 12 }}>
                 <div className="form-group">
-                  <label>Consignataria</label>
-                  <select
+                  <SearchCreateSelect
+                    label="Consignataria"
                     value={lotConsigneeId}
-                    onChange={(e) => setLotConsigneeId(e.target.value)}
-                    required
-                  >
-                    {consigneesList.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.ubicacion})
-                      </option>
-                    ))}
-                  </select>
+                    options={consigneeOptions}
+                    onChange={setLotConsigneeId}
+                    onCreate={handleCreateConsigneeFromSearch}
+                    placeholder="Buscar o crear consignataria"
+                    createLabel={(query) => `+ Crear consignataria "${query}"`}
+                    emptyMessage="No hay consignatarias con ese criterio."
+                  />
                 </div>
                 <div className="form-group">
                   <label>Fecha de Entrega</label>
@@ -517,13 +554,13 @@ export default function ConsignacionPage() {
                 <div className="responsive-table-scroll">
                 <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 0.8fr 1fr", gap: 10, minWidth: 620 }}>
                   <div className="form-group" style={{ margin: 0 }}>
-                    <select value={selectedModelId} onChange={(e) => setSelectedModelId(e.target.value)}>
-                      {modelsList.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.id} — {m.name}
-                        </option>
-                      ))}
-                    </select>
+                    <SearchCreateSelect
+                      value={selectedModelId}
+                      options={modelOptions}
+                      onChange={setSelectedModelId}
+                      placeholder="Buscar modelo"
+                      emptyMessage="No hay modelos con ese criterio."
+                    />
                   </div>
                   <div className="form-group" style={{ margin: 0 }}>
                     <select value={selectedColorId} onChange={(e) => setSelectedColorId(e.target.value)}>
@@ -612,18 +649,14 @@ export default function ConsignacionPage() {
               </div>
 
               <div className="form-group">
-                <label>Método de Pago</label>
-                <select
+                <SearchCreateSelect
+                  label="Método de Pago"
                   value={payMethodId}
-                  onChange={(e) => setPayMethodId(e.target.value)}
-                  required
-                >
-                  {paymentMethodsList.map((pm) => (
-                    <option key={pm.id} value={pm.id}>
-                      {pm.name} ({pm.currency})
-                    </option>
-                  ))}
-                </select>
+                  options={paymentMethodOptions}
+                  onChange={setPayMethodId}
+                  placeholder="Buscar método"
+                  emptyMessage="No hay métodos disponibles."
+                />
               </div>
 
               <div className="form-group">

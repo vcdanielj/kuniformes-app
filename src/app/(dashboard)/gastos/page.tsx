@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getConfigData, getExpensesData, createExpenseAction } from "@/lib/db/actions";
+import { getConfigData, getExpensesData, createExpenseAction, addCategory } from "@/lib/db/actions";
 import { formatBs, formatRate, formatUSD } from "@/lib/utils";
 import { SETTINGS_KEYS, SYSTEM_DEFAULTS } from "@/lib/app-config";
 import { useUser } from "../UserContext";
+import { SearchCreateSelect, type SearchCreateOption } from "@/components/ui/SearchCreateSelect";
 
 type FxSource = "paralelo" | "bcv" | "manual";
 
@@ -145,6 +146,11 @@ export default function GastosPage() {
   );
   const usesBolivares = isBolivarCurrency(currency);
   const amountOriginalNumber = Number.parseFloat(amountOriginal);
+  const expenseCategoryOptions: SearchCreateOption[] = expenseCategories.map((category) => ({
+    value: String(category.id),
+    label: category.name,
+    meta: "Categoría de gasto",
+  }));
   const amountUsdPreview = Number.isFinite(amountOriginalNumber) && amountOriginalNumber > 0
     ? usesBolivares
       ? Number.parseFloat(rateValue) > 0
@@ -157,6 +163,18 @@ export default function GastosPage() {
     setRateSource(nextSource);
     if (nextSource === "paralelo") setRateValue(String(tasaParalelo));
     if (nextSource === "bcv") setRateValue(String(tasaBcv));
+  }
+
+  async function handleCreateExpenseCategory(query: string) {
+    const name = query.trim();
+    if (!name) return;
+    setSubmitting(true);
+    const res = await addCategory(name, "expense");
+    setSubmitting(false);
+    if (!res.success) {
+      throw new Error(res.error || "No se pudo crear la categoría.");
+    }
+    await loadData();
   }
 
   return (
@@ -256,18 +274,16 @@ export default function GastosPage() {
 
               <div className="grid-2" style={{ gap: 12 }}>
                 <div className="form-group">
-                  <label>Categoría</label>
-                  <select
+                  <SearchCreateSelect
+                    label="Categoría"
                     value={categoryId}
-                    onChange={(e) => setCategoryId(e.target.value)}
-                    required
-                  >
-                    {expenseCategories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                    options={expenseCategoryOptions}
+                    onChange={setCategoryId}
+                    onCreate={handleCreateExpenseCategory}
+                    placeholder="Buscar o crear categoría"
+                    createLabel={(query) => `+ Crear categoría "${query}"`}
+                    emptyMessage="No hay categorías con ese criterio."
+                  />
                 </div>
                 <div className="form-group">
                   <label>Fecha</label>

@@ -11,6 +11,7 @@ import {
   getInventoryModels,
 } from "@/lib/db/actions";
 import { formatUSD } from "@/lib/utils";
+import { SearchCreateSelect, type SearchCreateOption } from "@/components/ui/SearchCreateSelect";
 
 function estadoBadge(e: string): string {
   if (e === "recibida") return "badge badge-success";
@@ -124,6 +125,18 @@ export default function ComprasPage() {
 
   // Flatten SKUs for helper mapping in items dropdown
   const allSkusFlat = modelsList.flatMap((m) => m.skus);
+  const supplierOptions: SearchCreateOption[] = suppliersList.map((supplier) => ({
+    value: String(supplier.id),
+    label: supplier.name,
+    meta: supplier.contact || supplier.items || "Sin contacto",
+    keywords: [supplier.items || "", supplier.contact || ""],
+  }));
+  const skuOptions: SearchCreateOption[] = allSkusFlat.map((sku) => ({
+    value: String(sku.id),
+    label: sku.compositeCode,
+    meta: `${sku.stock} und · costo prom ${formatUSD(sku.avgCost || 0)}`,
+    keywords: [sku.modelId || ""],
+  }));
 
   // Form Submissions
   async function handleCreateSupplier(e: React.FormEvent) {
@@ -140,6 +153,23 @@ export default function ComprasPage() {
       loadData();
     } else {
       setErrorMsg(res.error || "Error al agregar proveedor");
+    }
+  }
+
+  async function handleCreateSupplierFromSearch(query: string) {
+    const name = query.trim();
+    if (!name) return;
+    setSubmitting(true);
+    const res = await createSupplier(name, "", "");
+    const freshSuppliers = await getSuppliers();
+    setSuppliersList(freshSuppliers);
+    setSubmitting(false);
+    if (!res.success) {
+      throw new Error(res.error || "Error al crear proveedor.");
+    }
+    const created = freshSuppliers.find((supplier: any) => supplier.name.toLowerCase() === name.toLowerCase());
+    if (created) {
+      setPurSupplierId(String(created.id));
     }
   }
 
@@ -387,12 +417,16 @@ export default function ComprasPage() {
 
               <div className="grid-2" style={{ gap: 14, marginBottom: 14 }}>
                 <div>
-                  <label className="input-label">Proveedor</label>
-                  <select className="input" value={purSupplierId} onChange={(e) => setPurSupplierId(e.target.value)} required>
-                    {suppliersList.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
+                  <SearchCreateSelect
+                    label="Proveedor"
+                    value={purSupplierId}
+                    options={supplierOptions}
+                    onChange={setPurSupplierId}
+                    onCreate={handleCreateSupplierFromSearch}
+                    placeholder="Buscar o crear proveedor"
+                    createLabel={(query) => `+ Crear proveedor "${query}"`}
+                    emptyMessage="No hay proveedores con ese criterio."
+                  />
                 </div>
                 <div>
                   <label className="input-label">Fecha de entrada</label>
@@ -423,21 +457,19 @@ export default function ComprasPage() {
                 
                 <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr auto", gap: 12, alignItems: "flex-end" }}>
                   <div>
-                    <label className="input-label" style={{ marginBottom: 4 }}>Variación SKU</label>
-                    <select
-                      className="input"
-                      value={itemSkuId || ""}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
+                    <SearchCreateSelect
+                      label="Variación SKU"
+                      value={itemSkuId ? String(itemSkuId) : ""}
+                      options={skuOptions}
+                      onChange={(selectedValue) => {
+                        const val = Number(selectedValue);
                         setItemSkuId(val);
-                        const matched = allSkusFlat.find((s) => s.id === val);
+                        const matched = allSkusFlat.find((sku) => sku.id === val);
                         if (matched) setItemCost(String(matched.avgCost || 16));
                       }}
-                    >
-                      {allSkusFlat.map((sku) => (
-                        <option key={sku.id} value={sku.id}>{sku.compositeCode}</option>
-                      ))}
-                    </select>
+                      placeholder="Buscar SKU"
+                      emptyMessage="No hay SKUs con ese criterio."
+                    />
                   </div>
                   <div>
                     <label className="input-label" style={{ marginBottom: 4 }}>Cantidad (u)</label>
