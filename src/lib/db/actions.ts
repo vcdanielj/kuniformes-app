@@ -35,6 +35,7 @@ import {
   consignmentPayments,
   expenses,
   shipments,
+  auditLog,
 } from "./schema";
 import { eq, and, sql, gte, inArray, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -411,6 +412,41 @@ export async function getUsersListAction() {
   return formattedUsers.sort((a: any, b: any) => a.name.localeCompare(b.name));
 }
 
+function normalizeRequiredText(value: string, label: string) {
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new Error(`${label} es obligatorio.`);
+  }
+  return normalized;
+}
+
+async function countRows(query: Promise<Array<{ count: number }>>) {
+  const [row] = await query;
+  return Number(row?.count || 0);
+}
+
+async function ensureUserManagementAllowed(targetUserId: string) {
+  const { user } = await requireAdmin();
+  const [targetUser] = await db.select().from(users).where(eq(users.id, targetUserId)).limit(1);
+  if (!targetUser) {
+    throw new Error("Usuario no encontrado.");
+  }
+
+  const adminCount = await countRows(
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(users)
+      .where(and(eq(users.role, "admin"), eq(users.active, true)))
+  );
+
+  return {
+    currentUser: user,
+    targetUser,
+    adminCount,
+    isLastActiveAdmin: targetUser.role === "admin" && !!targetUser.active && adminCount <= 1,
+  };
+}
+
 export async function createUserAction(data: {
   name: string;
   email: string;
@@ -443,9 +479,33 @@ export async function createUserAction(data: {
   }
 }
 
-export async function updateUserRoleAction(id: string, role: "admin" | "vendedor") {
+export async function updateUserAction(data: {
+  id: string;
+  name: string;
+  email: string;
+}) {
   try {
     await requireAdmin();
+    await db
+      .update(users)
+      .set({
+        name: normalizeRequiredText(data.name, "Nombre"),
+        email: normalizeRequiredText(data.email, "Correo").toLowerCase(),
+      })
+      .where(eq(users.id, data.id));
+    revalidatePath("/configuracion");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al actualizar usuario" };
+  }
+}
+
+export async function updateUserRoleAction(id: string, role: "admin" | "vendedor") {
+  try {
+    const context = await ensureUserManagementAllowed(id);
+    if (context.isLastActiveAdmin && role !== "admin") {
+      throw new Error("No puedes quitar el rol al ultimo administrador activo.");
+    }
     await db.update(users).set({ role }).where(eq(users.id, id));
     revalidatePath("/configuracion");
     return { success: true };
@@ -456,7 +516,10 @@ export async function updateUserRoleAction(id: string, role: "admin" | "vendedor
 
 export async function updateUserActiveAction(id: string, active: boolean) {
   try {
-    await requireAdmin();
+    const context = await ensureUserManagementAllowed(id);
+    if (!active && context.isLastActiveAdmin) {
+      throw new Error("No puedes desactivar al ultimo administrador activo.");
+    }
     await db.update(users).set({ active }).where(eq(users.id, id));
     if (!active) {
       await db.delete(sessions).where(eq(sessions.userId, id));
@@ -465,6 +528,53 @@ export async function updateUserActiveAction(id: string, active: boolean) {
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message || "Error al actualizar estatus del usuario" };
+  }
+}
+
+export async function changeUserPasswordAction(id: string, password: string) {
+  try {
+    await requireAdmin();
+    const normalizedPassword = password.trim();
+    if (normalizedPassword.length < 6) {
+      throw new Error("La contraseña debe tener al menos 6 caracteres.");
+    }
+    const passwordHash = await hashPassword(normalizedPassword);
+    await db.update(users).set({ passwordHash }).where(eq(users.id, id));
+    await db.delete(sessions).where(eq(sessions.userId, id));
+    revalidatePath("/configuracion");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al cambiar contraseña" };
+  }
+}
+
+export async function deleteUserAction(id: string) {
+  try {
+    const context = await ensureUserManagementAllowed(id);
+    if (context.currentUser.id === id) {
+      throw new Error("No puedes eliminar tu propio usuario.");
+    }
+    if (context.isLastActiveAdmin) {
+      throw new Error("No puedes eliminar al ultimo administrador activo.");
+    }
+
+    const usageCounts = await Promise.all([
+      countRows(db.select({ count: sql<number>`count(*)` }).from(stockAdjustments).where(eq(stockAdjustments.userId, id))),
+      countRows(db.select({ count: sql<number>`count(*)` }).from(sales).where(eq(sales.userId, id))),
+      countRows(db.select({ count: sql<number>`count(*)` }).from(returns).where(eq(returns.userId, id))),
+      countRows(db.select({ count: sql<number>`count(*)` }).from(auditLog).where(eq(auditLog.userId, id))),
+    ]);
+
+    if (usageCounts.some((count) => count > 0)) {
+      throw new Error("No puedes eliminar un usuario con movimientos historicos. Desactivalo en su lugar.");
+    }
+
+    await db.delete(sessions).where(eq(sessions.userId, id));
+    await db.delete(users).where(eq(users.id, id));
+    revalidatePath("/configuracion");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al eliminar usuario" };
   }
 }
 
@@ -484,6 +594,47 @@ export async function addColor(code: string, name: string, hex: string) {
   }
 }
 
+export async function updateColorAction(id: number, code: string, name: string, hex: string) {
+  try {
+    await requireAdmin();
+    await db
+      .update(colors)
+      .set({
+        code: normalizeRequiredText(code, "Codigo"),
+        name: normalizeRequiredText(name, "Nombre"),
+        hex: normalizeRequiredText(hex, "Hex"),
+      })
+      .where(eq(colors.id, id));
+    revalidatePath("/configuracion");
+    revalidatePath("/inventario");
+    revalidatePath("/catalogo");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al actualizar color" };
+  }
+}
+
+export async function deleteColorAction(id: number) {
+  try {
+    await requireAdmin();
+    const [modelColorCount, imageCount, skuCount] = await Promise.all([
+      countRows(db.select({ count: sql<number>`count(*)` }).from(modelColors).where(eq(modelColors.colorId, id))),
+      countRows(db.select({ count: sql<number>`count(*)` }).from(modelColorImages).where(eq(modelColorImages.colorId, id))),
+      countRows(db.select({ count: sql<number>`count(*)` }).from(skus).where(eq(skus.colorId, id))),
+    ]);
+    if (modelColorCount > 0 || imageCount > 0 || skuCount > 0) {
+      throw new Error("No puedes eliminar un color que ya esta en uso por modelos, imagenes o SKUs.");
+    }
+    await db.delete(colors).where(eq(colors.id, id));
+    revalidatePath("/configuracion");
+    revalidatePath("/inventario");
+    revalidatePath("/catalogo");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al eliminar color" };
+  }
+}
+
 export async function addSize(name: string) {
   try {
     await requireAdmin();
@@ -498,6 +649,37 @@ export async function addSize(name: string) {
   }
 }
 
+export async function updateSizeAction(id: number, name: string) {
+  try {
+    await requireAdmin();
+    await db.update(sizes).set({ name: normalizeRequiredText(name, "Nombre") }).where(eq(sizes.id, id));
+    revalidatePath("/configuracion");
+    revalidatePath("/inventario");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al actualizar talla" };
+  }
+}
+
+export async function deleteSizeAction(id: number) {
+  try {
+    await requireAdmin();
+    const [modelSizeCount, skuCount] = await Promise.all([
+      countRows(db.select({ count: sql<number>`count(*)` }).from(modelSizes).where(eq(modelSizes.sizeId, id))),
+      countRows(db.select({ count: sql<number>`count(*)` }).from(skus).where(eq(skus.sizeId, id))),
+    ]);
+    if (modelSizeCount > 0 || skuCount > 0) {
+      throw new Error("No puedes eliminar una talla que ya esta en uso por modelos o SKUs.");
+    }
+    await db.delete(sizes).where(eq(sizes.id, id));
+    revalidatePath("/configuracion");
+    revalidatePath("/inventario");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al eliminar talla" };
+  }
+}
+
 export async function addCategory(name: string, type: "product" | "expense") {
   try {
     await requireAdmin();
@@ -509,6 +691,42 @@ export async function addCategory(name: string, type: "product" | "expense") {
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message || "Error al agregar categoría" };
+  }
+}
+
+export async function updateCategoryAction(id: number, name: string, type: "product" | "expense") {
+  try {
+    await requireAdmin();
+    await db
+      .update(categories)
+      .set({ name: normalizeRequiredText(name, "Nombre"), type })
+      .where(eq(categories.id, id));
+    revalidatePath("/configuracion");
+    revalidatePath("/inventario");
+    revalidatePath("/gastos");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al actualizar categoría" };
+  }
+}
+
+export async function deleteCategoryAction(id: number) {
+  try {
+    await requireAdmin();
+    const [modelCount, expenseCount] = await Promise.all([
+      countRows(db.select({ count: sql<number>`count(*)` }).from(models).where(eq(models.categoryId, id))),
+      countRows(db.select({ count: sql<number>`count(*)` }).from(expenses).where(eq(expenses.categoryId, id))),
+    ]);
+    if (modelCount > 0 || expenseCount > 0) {
+      throw new Error("No puedes eliminar una categoria que ya esta asociada a modelos o gastos.");
+    }
+    await db.delete(categories).where(eq(categories.id, id));
+    revalidatePath("/configuracion");
+    revalidatePath("/inventario");
+    revalidatePath("/gastos");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al eliminar categoría" };
   }
 }
 
@@ -527,6 +745,46 @@ export async function addPaymentMethod(name: string, currency: string) {
   }
 }
 
+export async function updatePaymentMethodAction(id: number, data: { name: string; currency: string; active: boolean }) {
+  try {
+    await requireAdmin();
+    await db
+      .update(paymentMethods)
+      .set({
+        name: normalizeRequiredText(data.name, "Nombre"),
+        currency: normalizeRequiredText(data.currency, "Moneda").toUpperCase(),
+        active: !!data.active,
+      })
+      .where(eq(paymentMethods.id, id));
+    revalidatePath("/configuracion");
+    revalidatePath("/ventas");
+    revalidatePath("/consignacion");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al actualizar método de pago" };
+  }
+}
+
+export async function deletePaymentMethodAction(id: number) {
+  try {
+    await requireAdmin();
+    const [salePaymentCount, consignmentPaymentCount] = await Promise.all([
+      countRows(db.select({ count: sql<number>`count(*)` }).from(salePayments).where(eq(salePayments.methodId, id))),
+      countRows(db.select({ count: sql<number>`count(*)` }).from(consignmentPayments).where(eq(consignmentPayments.methodId, id))),
+    ]);
+    if (salePaymentCount > 0 || consignmentPaymentCount > 0) {
+      throw new Error("No puedes eliminar un metodo de pago con operaciones historicas.");
+    }
+    await db.delete(paymentMethods).where(eq(paymentMethods.id, id));
+    revalidatePath("/configuracion");
+    revalidatePath("/ventas");
+    revalidatePath("/consignacion");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al eliminar método de pago" };
+  }
+}
+
 export async function addCarrier(name: string, tag: string) {
   try {
     await requireAdmin();
@@ -538,6 +796,42 @@ export async function addCarrier(name: string, tag: string) {
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message || "Error al agregar transportista" };
+  }
+}
+
+export async function updateCarrierAction(id: number, name: string, tag: string) {
+  try {
+    await requireAdmin();
+    await db
+      .update(carriers)
+      .set({
+        name: normalizeRequiredText(name, "Nombre"),
+        tag: normalizeRequiredText(tag, "Etiqueta"),
+      })
+      .where(eq(carriers.id, id));
+    revalidatePath("/configuracion");
+    revalidatePath("/despachos");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al actualizar transportista" };
+  }
+}
+
+export async function deleteCarrierAction(id: number) {
+  try {
+    await requireAdmin();
+    const shipmentCount = await countRows(
+      db.select({ count: sql<number>`count(*)` }).from(shipments).where(eq(shipments.carrierId, id))
+    );
+    if (shipmentCount > 0) {
+      throw new Error("No puedes eliminar un transportista con despachos historicos.");
+    }
+    await db.delete(carriers).where(eq(carriers.id, id));
+    revalidatePath("/configuracion");
+    revalidatePath("/despachos");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al eliminar transportista" };
   }
 }
 
