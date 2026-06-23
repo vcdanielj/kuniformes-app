@@ -48,16 +48,78 @@ const cGray = rgb(138 / 255, 138 / 255, 130 / 255);
 const cLightGray = rgb(236 / 255, 234 / 255, 227 / 255);
 const cPanel = rgb(245 / 255, 243 / 255, 239 / 255);
 const cBorder = rgb(229 / 255, 227 / 255, 220 / 255);
+const cWhite = rgb(1, 1, 1);
+const PAGE_MARGIN_X = 40;
+const PAGE_TOP = 50;
+const PAGE_BOTTOM = 54;
+
+function hexToRgbColor(hex?: string | null) {
+  const h = (hex || "").replace("#", "").trim();
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const n = parseInt(full, 16);
+  if (full.length !== 6 || Number.isNaN(n)) return cGray;
+  return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+}
 
 function resolveAssetUrl(url: string, baseUrl?: string) {
-  if (url.startsWith("http://") || url.startsWith("https://") || !baseUrl) {
+  if (
+    url.startsWith("http://") ||
+    url.startsWith("https://") ||
+    url.startsWith("data:") ||
+    !baseUrl
+  ) {
     return url;
   }
   return new URL(url, baseUrl).toString();
 }
 
+/**
+ * pdf-lib's StandardFonts use WinAnsi (CP1252) encoding and THROW on any code
+ * point outside it (emoji, arrows, CJK, etc.), which would crash the whole
+ * document. Map common smart punctuation to ASCII and drop anything that is not
+ * encodable, so a stray character in a customer name/note degrades gracefully.
+ */
+const PDF_TEXT_REPLACEMENTS: Record<string, string> = {
+  "‘": "'", "’": "'", "‚": "'", "‛": "'",
+  "“": '"', "”": '"', "„": '"', "‟": '"',
+  "–": "-", "—": "-", "―": "-", "‒": "-", "−": "-",
+  "…": "...", "•": "-", " ": " ",
+  "→": "->", "←": "<-", "↔": "<->",
+  "€": "EUR", "™": "(TM)", "®": "(R)", "©": "(C)",
+};
+
+function sanitizePdfText<T extends string | null | undefined>(value: T): T {
+  if (!value) return value;
+  const text = String(value);
+  let out = "";
+  for (const ch of text) {
+    const mapped = PDF_TEXT_REPLACEMENTS[ch];
+    if (mapped !== undefined) {
+      out += mapped;
+      continue;
+    }
+    const code = ch.codePointAt(0) ?? 0;
+    // Tab/newline, ASCII printable, and Latin-1 supplement are all WinAnsi-safe.
+    if (code === 9 || code === 10 || (code >= 0x20 && code <= 0x7e) || (code >= 0xa0 && code <= 0xff)) {
+      out += ch;
+    }
+    // Everything else (emoji, exotic symbols) is dropped.
+  }
+  return out as T;
+}
+
+function sanitizeBrand(brand: BrandInfo): BrandInfo {
+  return {
+    ...brand,
+    name: sanitizePdfText(brand.name),
+    rif: sanitizePdfText(brand.rif),
+    phone: sanitizePdfText(brand.phone),
+    instagram: sanitizePdfText(brand.instagram),
+  };
+}
+
 function splitText(font: PDFFont, text: string, size: number, maxWidth: number) {
-  const words = text.trim().split(/\s+/).filter(Boolean);
+  const words = sanitizePdfText(text).trim().split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let current = "";
 
@@ -105,26 +167,26 @@ function drawWrappedText(
 
 function drawFooter(page: PDFPage, pageNumber: number, totalPages: number, font: PDFFont, brand: BrandInfo) {
   const { width } = page.getSize();
+  const footerText = `${brand.instagram || ""}${brand.phone ? ` · ${brand.phone}` : ""}${brand.rif ? ` · ${brand.rif}` : ""}`;
+  const pageLabel = `Pagina ${pageNumber} de ${totalPages}`;
+
   page.drawLine({
-    start: { x: 40, y: 36 },
-    end: { x: width - 40, y: 36 },
+    start: { x: PAGE_MARGIN_X, y: 36 },
+    end: { x: width - PAGE_MARGIN_X, y: 36 },
     thickness: 1,
     color: cBorder,
   });
 
-  page.drawText(
-    `${brand.instagram || ""}${brand.phone ? ` · ${brand.phone}` : ""}${brand.rif ? ` · ${brand.rif}` : ""}`,
-    {
-      x: 40,
-      y: 22,
-      size: 8,
-      font,
-      color: cGray,
-    }
-  );
+  page.drawText(footerText, {
+    x: PAGE_MARGIN_X,
+    y: 22,
+    size: 8,
+    font,
+    color: cGray,
+  });
 
-  page.drawText(`Página ${pageNumber} de ${totalPages}`, {
-    x: width - 100,
+  page.drawText(pageLabel, {
+    x: width - PAGE_MARGIN_X - font.widthOfTextAtSize(pageLabel, 8),
     y: 22,
     size: 8,
     font,
@@ -139,16 +201,50 @@ async function fetchPdfImage(pdfDoc: PDFDocument, url: string, baseUrl?: string,
   }
 
   try {
-    const response = await fetch(resolvedUrl);
-    if (!response.ok) {
-      cache?.set(resolvedUrl, null);
-      return null;
+    let bytes: Uint8Array;
+    let contentType = "";
+
+    if (resolvedUrl.startsWith("data:")) {
+      // Parse data URLs inline — workerd's fetch() does not reliably support the
+      // data: scheme, and this avoids a wasteful base64 round-trip.
+      const match = resolvedUrl.match(/^data:([^;,]*)(;base64)?,([\s\S]*)$/);
+      if (!match) {
+        cache?.set(resolvedUrl, null);
+        return null;
+      }
+      contentType = match[1] || "";
+      if (match[2]) {
+        const binary = atob(match[3]);
+        bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      } else {
+        bytes = new TextEncoder().encode(decodeURIComponent(match[3]));
+      }
+    } else {
+      const response = await fetch(resolvedUrl);
+      if (!response.ok) {
+        cache?.set(resolvedUrl, null);
+        return null;
+      }
+      contentType = response.headers.get("content-type") || "";
+      bytes = new Uint8Array(await response.arrayBuffer());
     }
-    const contentType = response.headers.get("content-type") || "";
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    const image = contentType.includes("png")
-      ? await pdfDoc.embedPng(bytes)
-      : await pdfDoc.embedJpg(bytes);
+
+    const type = contentType.toLowerCase();
+    let image: PDFImage | null = null;
+    if (type.includes("png")) {
+      image = await pdfDoc.embedPng(bytes);
+    } else if (type.includes("jpeg") || type.includes("jpg")) {
+      image = await pdfDoc.embedJpg(bytes);
+    } else if (bytes[0] === 0x89 && bytes[1] === 0x50) {
+      image = await pdfDoc.embedPng(bytes); // PNG magic bytes
+    } else if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+      image = await pdfDoc.embedJpg(bytes); // JPEG magic bytes
+    } else {
+      // pdf-lib cannot embed WEBP/other formats — skip gracefully (blank card,
+      // no crash) rather than throwing.
+      image = null;
+    }
     cache?.set(resolvedUrl, image);
     return image;
   } catch {
@@ -171,6 +267,177 @@ function drawImageContain(page: PDFPage, image: PDFImage, box: { x: number; y: n
   });
 }
 
+function drawDocumentHeader(
+  page: PDFPage,
+  brand: BrandInfo,
+  fonts: { regular: PDFFont; bold: PDFFont; mono: PDFFont },
+  logo: PDFImage | null,
+  docTitle: string,
+  docNumber: string,
+  date: string,
+  continuation = false
+) {
+  const { width, height } = page.getSize();
+  let y = height - PAGE_TOP;
+
+  if (logo) {
+    drawImageContain(page, logo, { x: PAGE_MARGIN_X, y: y - 28, width: 42, height: 42 });
+  }
+
+  page.drawText(brand.name.toUpperCase(), {
+    x: 92,
+    y,
+    size: 19,
+    font: fonts.bold,
+    color: cBlack,
+  });
+  page.drawText("Sistema Administrativo · Venezuela", {
+    x: 92,
+    y: y - 14,
+    size: 10,
+    font: fonts.regular,
+    color: cGray,
+  });
+  page.drawText(`${brand.instagram || ""}${brand.phone ? ` · ${brand.phone}` : ""}`, {
+    x: 92,
+    y: y - 27,
+    size: 10,
+    font: fonts.regular,
+    color: cGray,
+  });
+
+  page.drawRectangle({
+    x: width - 216,
+    y: y - 36,
+    width: 176,
+    height: 50,
+    color: cPanel,
+    borderColor: cBorder,
+    borderWidth: 1,
+  });
+  page.drawText(docTitle, {
+    x: width - 202,
+    y: y - 3,
+    size: 11.5,
+    font: fonts.bold,
+    color: cBlack,
+  });
+  page.drawText(docNumber, {
+    x: width - 202,
+    y: y - 20,
+    size: 10.5,
+    font: fonts.mono,
+    color: cBlack,
+  });
+  page.drawText(date, {
+    x: width - 202,
+    y: y - 32,
+    size: 8.5,
+    font: fonts.regular,
+    color: cGray,
+  });
+
+  if (continuation) {
+    page.drawText("Continuacion", {
+      x: width - 106,
+      y: y + 2,
+      size: 8.5,
+      font: fonts.regular,
+      color: cGray,
+    });
+  }
+
+  y -= 60;
+  page.drawLine({
+    start: { x: PAGE_MARGIN_X, y },
+    end: { x: width - PAGE_MARGIN_X, y },
+    thickness: 1,
+    color: cBorder,
+  });
+
+  return y;
+}
+
+function drawDocumentInfoPanels(
+  page: PDFPage,
+  data: {
+    customerName: string;
+    customerPhone: string;
+    rateUsed: number;
+    rateSource: string;
+  },
+  fonts: { regular: PDFFont; bold: PDFFont }
+) {
+  const { width } = page.getSize();
+  const y = page.getSize().height - PAGE_TOP - 78;
+
+  page.drawRectangle({
+    x: PAGE_MARGIN_X,
+    y: y - 52,
+    width: 240,
+    height: 60,
+    color: cPanel,
+    borderColor: cBorder,
+    borderWidth: 1,
+  });
+  page.drawRectangle({
+    x: 292,
+    y: y - 52,
+    width: width - 332,
+    height: 60,
+    color: cPanel,
+    borderColor: cBorder,
+    borderWidth: 1,
+  });
+
+  page.drawText("CLIENTE", { x: 52, y: y - 2, size: 9, font: fonts.bold, color: cGray });
+  page.drawText(data.customerName, { x: 52, y: y - 18, size: 11, font: fonts.bold, color: cBlack });
+  page.drawText(data.customerPhone || "Sin telefono registrado", {
+    x: 52,
+    y: y - 34,
+    size: 9,
+    font: fonts.regular,
+    color: cGray,
+  });
+
+  page.drawText("TASA APLICADA", { x: 304, y: y - 2, size: 9, font: fonts.bold, color: cGray });
+  page.drawText(`${formatRate(data.rateUsed)} Bs/USD`, {
+    x: 304,
+    y: y - 18,
+    size: 11,
+    font: fonts.bold,
+    color: cBlack,
+  });
+  page.drawText(`Fuente: ${data.rateSource}`, {
+    x: 304,
+    y: y - 34,
+    size: 9,
+    font: fonts.regular,
+    color: cGray,
+  });
+
+  return y - 70;
+}
+
+function drawItemsHeader(page: PDFPage, boldFont: PDFFont) {
+  const { width } = page.getSize();
+  const y = page.getSize().height - PAGE_TOP - 168;
+
+  page.drawRectangle({
+    x: PAGE_MARGIN_X,
+    y: y - 4,
+    width: width - PAGE_MARGIN_X * 2,
+    height: 20,
+    color: cPanel,
+  });
+  page.drawText("SKU / VARIACION", { x: 50, y: y + 2, size: 8.5, font: boldFont, color: cGray });
+  page.drawText("CANT.", { x: 300, y: y + 2, size: 8.5, font: boldFont, color: cGray });
+  page.drawText("UNIT USD", { x: 365, y: y + 2, size: 8.5, font: boldFont, color: cGray });
+  page.drawText("SUBTOTAL", { x: 455, y: y + 2, size: 8.5, font: boldFont, color: cGray });
+
+  return y - 18;
+}
+
 export async function generateDocumentPdf(
   docType: "venta" | "cotizacion",
   docNumber: string,
@@ -187,191 +454,260 @@ export async function generateDocumentPdf(
   },
   options: PdfRenderOptions
 ): Promise<Uint8Array> {
+  // Sanitize all user-supplied strings up front so no stray character can crash
+  // the WinAnsi-encoded StandardFonts mid-render.
+  options = { ...options, brand: sanitizeBrand(options.brand) };
+  data = {
+    ...data,
+    customerName: sanitizePdfText(data.customerName),
+    customerPhone: sanitizePdfText(data.customerPhone),
+    rateSource: sanitizePdfText(data.rateSource),
+    notes: sanitizePdfText(data.notes),
+    items: data.items.map((it) => ({ ...it, compositeCode: sanitizePdfText(it.compositeCode) })),
+    payments: data.payments?.map((p) => ({
+      ...p,
+      name: sanitizePdfText(p.name),
+      reference: sanitizePdfText(p.reference),
+      currency: sanitizePdfText(p.currency),
+    })),
+  };
+
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595, 842]);
-  const { width, height } = page.getSize();
   const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const courierFont = await pdfDoc.embedFont(StandardFonts.Courier);
   const imageCache = new Map<string, PDFImage | null>();
-
-  let y = height - 50;
   const logo = options.brand.logoUrl
     ? await fetchPdfImage(pdfDoc, options.brand.logoUrl, options.baseUrl, imageCache)
     : null;
-  if (logo) {
-    drawImageContain(page, logo, { x: 40, y: y - 28, width: 40, height: 40 });
-  }
+  const fonts = { regular: helveticaFont, bold: helveticaBold, mono: courierFont };
+  const pageSize: [number, number] = [595, 842];
+  const docTitle = docType === "venta" ? "NOTA DE ENTREGA" : "COTIZACION";
+  const pages: PDFPage[] = [];
+  const totalBs = data.totalUsd * data.rateUsed;
+  let page = pdfDoc.addPage(pageSize);
+  let y = 0;
 
-  page.drawText(options.brand.name.toUpperCase(), {
-    x: 90,
-    y,
-    size: 19,
-    font: helveticaBold,
-    color: cBlack,
-  });
-  page.drawText("Sistema Administrativo · Venezuela", {
-    x: 90,
-    y: y - 14,
-    size: 10,
-    font: helveticaFont,
-    color: cGray,
-  });
-  page.drawText(
-    `${options.brand.instagram || ""}${options.brand.phone ? ` · ${options.brand.phone}` : ""}`,
-    {
-      x: 90,
-      y: y - 27,
+  const addPage = (continuation = false, section: "items" | "text" = "items") => {
+    page = continuation && pages.length > 0 ? pdfDoc.addPage(pageSize) : page;
+    if (continuation || pages.length === 0) {
+      if (continuation) {
+        pages.push(page);
+      } else {
+        pages.push(page);
+      }
+    }
+    const headerBottom = drawDocumentHeader(page, options.brand, fonts, logo, docTitle, docNumber, data.date, continuation);
+    if (!continuation) {
+      y = drawDocumentInfoPanels(page, {
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        rateUsed: data.rateUsed,
+        rateSource: data.rateSource,
+      }, fonts);
+    } else {
+      y = headerBottom - 18;
+    }
+    if (section === "items") {
+      y = drawItemsHeader(page, helveticaBold);
+    }
+  };
+
+  addPage(false, "items");
+
+  if (data.items.length === 0) {
+    page.drawText("Sin articulos registrados.", {
+      x: 50,
+      y,
       size: 10,
       font: helveticaFont,
       color: cGray,
-    }
-  );
+    });
+    y -= 20;
+  } else {
+    for (const item of data.items) {
+      const codeLines = splitText(courierFont, item.compositeCode, 10, 228);
+      const rowHeight = Math.max(16, codeLines.length * 12) + 4;
+      if (y - rowHeight < PAGE_BOTTOM + 120) {
+        page = pdfDoc.addPage(pageSize);
+        pages.push(page);
+        drawDocumentHeader(page, options.brand, fonts, logo, docTitle, docNumber, data.date, true);
+        y = drawItemsHeader(page, helveticaBold);
+      }
 
-  const docTitle = docType === "venta" ? "NOTA DE ENTREGA" : "COTIZACION";
+      codeLines.forEach((line, index) => {
+        page.drawText(line, {
+          x: 50,
+          y: y - index * 12,
+          size: 10,
+          font: courierFont,
+          color: cBlack,
+        });
+      });
+      page.drawText(String(item.quantity), {
+        x: 304,
+        y,
+        size: 10,
+        font: helveticaFont,
+        color: cBlack,
+      });
+      page.drawText(formatUSD(item.unitPrice), {
+        x: 356,
+        y,
+        size: 10,
+        font: helveticaFont,
+        color: cBlack,
+      });
+      page.drawText(formatUSD(item.quantity * item.unitPrice), {
+        x: 445,
+        y,
+        size: 10,
+        font: helveticaBold,
+        color: cBlack,
+      });
+
+      y -= rowHeight;
+      page.drawLine({
+        start: { x: PAGE_MARGIN_X, y: y + 4 },
+        end: { x: page.getSize().width - PAGE_MARGIN_X, y: y + 4 },
+        thickness: 0.5,
+        color: cBorder,
+      });
+    }
+  }
+
+  if (y - 90 < PAGE_BOTTOM + 90) {
+    page = pdfDoc.addPage(pageSize);
+    pages.push(page);
+    y = drawDocumentHeader(page, options.brand, fonts, logo, docTitle, docNumber, data.date, true) - 18;
+  } else {
+    y -= 14;
+  }
+
+  const { width } = page.getSize();
   page.drawRectangle({
-    x: width - 210,
-    y: y - 34,
-    width: 170,
-    height: 46,
+    x: PAGE_MARGIN_X,
+    y: y - 70,
+    width: width - 292,
+    height: 78,
     color: cPanel,
     borderColor: cBorder,
     borderWidth: 1,
   });
-  page.drawText(docTitle, {
-    x: width - 196,
-    y: y - 4,
-    size: 12,
-    font: helveticaBold,
-    color: cBlack,
-  });
-  page.drawText(docNumber, {
-    x: width - 196,
-    y: y - 19,
-    size: 11,
-    font: courierFont,
-    color: cBlack,
-  });
-  page.drawText(data.date, {
-    x: width - 115,
-    y: y - 19,
-    size: 9,
-    font: helveticaFont,
-    color: cGray,
-  });
-
-  y -= 58;
-  page.drawLine({
-    start: { x: 40, y },
-    end: { x: width - 40, y },
-    thickness: 1,
-    color: cBorder,
-  });
-
-  y -= 18;
-  page.drawRectangle({ x: 40, y: y - 48, width: 240, height: 56, color: cPanel, borderColor: cBorder, borderWidth: 1 });
-  page.drawRectangle({ x: 292, y: y - 48, width: width - 332, height: 56, color: cPanel, borderColor: cBorder, borderWidth: 1 });
-
-  page.drawText("CLIENTE", { x: 52, y: y - 2, size: 9, font: helveticaBold, color: cGray });
-  page.drawText(data.customerName, { x: 52, y: y - 18, size: 11, font: helveticaBold, color: cBlack });
-  page.drawText(data.customerPhone || "Sin telefono registrado", {
+  page.drawText("RESUMEN DEL DOCUMENTO", {
     x: 52,
-    y: y - 33,
+    y: y - 2,
     size: 9,
-    font: helveticaFont,
+    font: helveticaBold,
     color: cGray,
   });
-
-  page.drawText("TASA APLICADA", { x: 304, y: y - 2, size: 9, font: helveticaBold, color: cGray });
-  page.drawText(`${formatRate(data.rateUsed)} Bs/USD`, {
-    x: 304,
-    y: y - 18,
-    size: 11,
-    font: helveticaBold,
+  page.drawText(`Tasa guardada: ${formatRate(data.rateUsed)} Bs/USD · ${data.rateSource}`, {
+    x: 52,
+    y: y - 20,
+    size: 9.5,
+    font: helveticaFont,
     color: cBlack,
   });
-  page.drawText(`Fuente: ${data.rateSource}`, {
-    x: 304,
-    y: y - 33,
-    size: 9,
-    font: helveticaFont,
-    color: cGray,
+  page.drawText(
+    docType === "venta"
+      ? "Documento listo para imprimir, entregar y respaldar el cierre de caja."
+      : "Cotizacion con valores en USD y referencia equivalente en bolivares.",
+    {
+      x: 52,
+      y: y - 38,
+      size: 9,
+      font: helveticaFont,
+      color: cGray,
+      maxWidth: width - 320,
+    }
+  );
+
+  page.drawRectangle({
+    x: width - 220,
+    y: y - 78,
+    width: 180,
+    height: 84,
+    color: cBlack,
   });
+  page.drawText("TOTAL USD", { x: width - 205, y: y - 10, size: 8.5, font: helveticaFont, color: cWhite });
+  page.drawText(formatUSD(data.totalUsd), { x: width - 205, y: y - 30, size: 15, font: helveticaBold, color: cWhite });
+  page.drawText("TOTAL BS", { x: width - 205, y: y - 48, size: 8.5, font: helveticaFont, color: cWhite });
+  page.drawText(formatBs(totalBs), { x: width - 205, y: y - 64, size: 11.5, font: helveticaBold, color: cWhite });
+  y -= 100;
 
-  y -= 70;
-  page.drawRectangle({ x: 40, y: y - 4, width: width - 80, height: 20, color: cPanel });
-  page.drawText("SKU / VARIACION", { x: 50, y: y + 2, size: 8.5, font: helveticaBold, color: cGray });
-  page.drawText("CANT.", { x: 300, y: y + 2, size: 8.5, font: helveticaBold, color: cGray });
-  page.drawText("UNIT USD", { x: 365, y: y + 2, size: 8.5, font: helveticaBold, color: cGray });
-  page.drawText("SUBTOTAL", { x: 455, y: y + 2, size: 8.5, font: helveticaBold, color: cGray });
-
-  y -= 18;
-  for (const item of data.items) {
-    page.drawText(item.compositeCode, {
-      x: 50,
+  const startTextSection = (title: string) => {
+    if (y - 42 < PAGE_BOTTOM + 70) {
+      page = pdfDoc.addPage(pageSize);
+      pages.push(page);
+      y = drawDocumentHeader(page, options.brand, fonts, logo, docTitle, docNumber, data.date, true) - 18;
+    }
+    page.drawText(title, {
+      x: PAGE_MARGIN_X,
       y,
-      size: 10,
-      font: courierFont,
-      color: cBlack,
-    });
-    page.drawText(String(item.quantity), {
-      x: 304,
-      y,
-      size: 10,
-      font: helveticaFont,
-      color: cBlack,
-    });
-    page.drawText(formatUSD(item.unitPrice), {
-      x: 356,
-      y,
-      size: 10,
-      font: helveticaFont,
-      color: cBlack,
-    });
-    page.drawText(formatUSD(item.quantity * item.unitPrice), {
-      x: 445,
-      y,
-      size: 10,
+      size: 9,
       font: helveticaBold,
-      color: cBlack,
+      color: cGray,
     });
-    y -= 16;
-    page.drawLine({
-      start: { x: 40, y: y + 5 },
-      end: { x: width - 40, y: y + 5 },
-      thickness: 0.5,
-      color: cBorder,
-    });
-  }
-
-  y -= 12;
-  const totalBs = data.totalUsd * data.rateUsed;
-  page.drawRectangle({ x: width - 220, y: y - 54, width: 180, height: 60, color: cBlack });
-  page.drawText("TOTAL USD", { x: width - 205, y: y - 8, size: 8.5, font: helveticaFont, color: rgb(1, 1, 1) });
-  page.drawText(formatUSD(data.totalUsd), { x: width - 205, y: y - 26, size: 15, font: helveticaBold, color: rgb(1, 1, 1) });
-  page.drawText("TOTAL BS", { x: width - 205, y: y - 40, size: 8.5, font: helveticaFont, color: rgb(1, 1, 1) });
-  page.drawText(formatBs(totalBs), { x: width - 135, y: y - 40, size: 8.5, font: helveticaBold, color: rgb(1, 1, 1) });
+    y -= 14;
+  };
 
   if (docType === "venta" && data.payments?.length) {
-    y -= 72;
-    page.drawText("DETALLE DE PAGOS", { x: 40, y, size: 9, font: helveticaBold, color: cGray });
-    y -= 12;
+    startTextSection("DETALLE DE PAGOS");
     for (const payment of data.payments) {
       const original = payment.currency && payment.currency.toUpperCase() !== "USD" && payment.amountOriginal
         ? `${payment.amountOriginal.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${payment.currency}`
         : formatUSD(payment.amountUsd);
       const paymentLine = `${payment.name}: ${original} -> ${formatUSD(payment.amountUsd)}${payment.rateUsed ? ` @ ${formatRate(payment.rateUsed)} (${payment.rateSource || "manual"})` : ""}${payment.reference ? ` · ${payment.reference}` : ""}`;
+      const paymentLines = splitText(helveticaFont, paymentLine, 9, width - 100);
+      if (y - paymentLines.length * 12 < PAGE_BOTTOM + 50) {
+        page = pdfDoc.addPage(pageSize);
+        pages.push(page);
+        y = drawDocumentHeader(page, options.brand, fonts, logo, docTitle, docNumber, data.date, true) - 18;
+        page.drawText("DETALLE DE PAGOS", {
+          x: PAGE_MARGIN_X,
+          y,
+          size: 9,
+          font: helveticaBold,
+          color: cGray,
+        });
+        y -= 14;
+      }
       y = drawWrappedText(page, helveticaFont, paymentLine, 50, y, width - 100, 9, cBlack) - 4;
     }
   }
 
   if (data.notes) {
-    y -= 10;
-    page.drawText("NOTAS", { x: 40, y, size: 9, font: helveticaBold, color: cGray });
-    y = drawWrappedText(page, helveticaFont, data.notes, 50, y - 14, width - 100, 9, cBlack) - 8;
+    startTextSection("NOTAS");
+    const noteLines = splitText(helveticaFont, data.notes, 9, width - 100);
+    if (y - noteLines.length * 12 < PAGE_BOTTOM + 36) {
+      page = pdfDoc.addPage(pageSize);
+      pages.push(page);
+      y = drawDocumentHeader(page, options.brand, fonts, logo, docTitle, docNumber, data.date, true) - 18;
+      page.drawText("NOTAS", {
+        x: PAGE_MARGIN_X,
+        y,
+        size: 9,
+        font: helveticaBold,
+        color: cGray,
+      });
+      y -= 14;
+    }
+    page.drawRectangle({
+      x: PAGE_MARGIN_X,
+      y: y - Math.max(42, noteLines.length * 12 + 12),
+      width: width - PAGE_MARGIN_X * 2,
+      height: Math.max(42, noteLines.length * 12 + 12),
+      color: cPanel,
+      borderColor: cBorder,
+      borderWidth: 1,
+    });
+    y = drawWrappedText(page, helveticaFont, data.notes, 50, y - 10, width - 100, 9, cBlack) - 8;
   }
 
-  drawFooter(page, 1, 1, helveticaFont, options.brand);
+  pages.forEach((currentPage, index) => {
+    drawFooter(currentPage, index + 1, pages.length, helveticaFont, options.brand);
+  });
+
   return await pdfDoc.save();
 }
 
@@ -380,6 +716,21 @@ export async function generateCatalogPdf(
   showPrices: boolean,
   options: PdfRenderOptions
 ): Promise<Uint8Array> {
+  options = { ...options, brand: sanitizeBrand(options.brand) };
+  modelsList = modelsList.map((model) => ({
+    ...model,
+    id: sanitizePdfText(model.id),
+    name: sanitizePdfText(model.name),
+    category: sanitizePdfText(model.category),
+    composition: sanitizePdfText(model.composition),
+    colorCodes: model.colorCodes.map((c) => sanitizePdfText(c)),
+    colors: model.colors?.map((color) => ({
+      ...color,
+      name: sanitizePdfText(color.name),
+      code: sanitizePdfText(color.code),
+    })),
+  }));
+
   const pdfDoc = await PDFDocument.create();
   const imageCache = new Map<string, PDFImage | null>();
   const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -397,8 +748,8 @@ export async function generateCatalogPdf(
 
   const pageSize: [number, number] = [612, 792];
   let page = pdfDoc.addPage(pageSize);
+  const pages = [page];
   const { width, height } = page.getSize();
-  let pageNumber = 1;
 
   async function drawCatalogHeader(currentPage: PDFPage) {
     if (logo) {
@@ -419,7 +770,7 @@ export async function generateCatalogPdf(
       color: cGray,
     });
     currentPage.drawText(new Date().toLocaleDateString("es-VE"), {
-      x: width - 110,
+      x: width - 40 - helveticaFont.widthOfTextAtSize(new Date().toLocaleDateString("es-VE"), 10),
       y: height - 48,
       size: 10,
       font: helveticaFont,
@@ -435,133 +786,150 @@ export async function generateCatalogPdf(
 
   await drawCatalogHeader(page);
 
-  let x = 40;
-  let y = height - 110;
+  // 2x2 grid = four product cards per page. Sized to fill the page height so
+  // there is no large empty band at the bottom and the grid reads as centered.
+  // The two columns (2 * cardWidth + colGap) exactly span the content area
+  // (width - 2 * gridLeft), so the grid is horizontally centered. Layout flows
+  // top-to-bottom inside each card so nothing overlaps regardless of how many
+  // lines the title wraps to.
+  const pad = 14;
   const cardWidth = 256;
-  const cardHeight = 290;
+  const colGap = 20;
+  const rowGap = 18;
+  const imgH = 158; // portrait image area for vertical product photos
+  const cardHeight = 300;
+
+  const gridLeft = 40;
+  const topStart = height - 102;
+  let x = gridLeft;
+  let y = topStart;
 
   for (const entry of entries) {
-    if (y - cardHeight < 60) {
-      drawFooter(page, pageNumber, 0, helveticaFont, options.brand);
+    if (y - cardHeight < PAGE_BOTTOM + 8) {
       page = pdfDoc.addPage(pageSize);
-      pageNumber += 1;
+      pages.push(page);
       await drawCatalogHeader(page);
-      x = 40;
-      y = height - 110;
+      x = gridLeft;
+      y = topStart;
     }
 
+    const cardTop = y;
+    const innerW = cardWidth - pad * 2;
+
+    // Card frame
     page.drawRectangle({
       x,
-      y: y - cardHeight,
+      y: cardTop - cardHeight,
       width: cardWidth,
       height: cardHeight,
-      color: rgb(1, 1, 1),
+      color: cWhite,
       borderColor: cBorder,
       borderWidth: 1,
     });
 
-    page.drawRectangle({
-      x: x + 14,
-      y: y - 176,
-      width: cardWidth - 28,
-      height: 150,
-      color: cPanel,
-    });
+    // Portrait image area
+    const imgTop = cardTop - pad;
+    page.drawRectangle({ x: x + pad, y: imgTop - imgH, width: innerW, height: imgH, color: cPanel });
 
+    let drewImage = false;
     if (entry.color.imageUrl) {
       const image = await fetchPdfImage(pdfDoc, entry.color.imageUrl, options.baseUrl, imageCache);
       if (image) {
-        drawImageContain(page, image, {
-          x: x + 18,
-          y: y - 172,
-          width: cardWidth - 36,
-          height: 142,
-        });
+        drawImageContain(page, image, { x: x + pad, y: imgTop - imgH, width: innerW, height: imgH });
+        drewImage = true;
       }
     }
-
-    page.drawText(entry.name, {
-      x: x + 14,
-      y: y - 194,
-      size: 13,
-      font: helveticaBold,
-      color: cBlack,
-      maxWidth: cardWidth - 28,
-    });
-
-    page.drawText(`${entry.id} · ${entry.category}`, {
-      x: x + 14,
-      y: y - 208,
-      size: 9,
-      font: helveticaFont,
-      color: cGray,
-      maxWidth: cardWidth - 28,
-    });
-
-    page.drawRectangle({
-      x: x + 14,
-      y: y - 232,
-      width: cardWidth - 28,
-      height: 18,
-      color: cPanel,
-    });
-    page.drawText(`Color: ${entry.color.name} · ${entry.color.code}`, {
-      x: x + 20,
-      y: y - 226,
-      size: 8.5,
-      font: helveticaBold,
-      color: cBlack,
-    });
-
-    const composition = entry.composition || "Sin composicion registrada";
-    drawWrappedText(page, helveticaFont, `Composición: ${composition}`, x + 14, y - 248, cardWidth - 28, 8.5, cGray);
-
-    const sizes = Array.from(
-      new Set(
-        (entry.skus || [])
-          .filter((sku) => !entry.color.id || sku.compositeCode.includes(entry.color.code))
-          .map((sku) => sku.compositeCode.split("-").pop() || "")
-          .filter(Boolean)
-      )
-    );
-    page.drawText(`Tallas: ${sizes.length ? sizes.join(", ") : "Unica"}`, {
-      x: x + 14,
-      y: y - 270,
-      size: 8.5,
-      font: helveticaFont,
-      color: cBlack,
-      maxWidth: cardWidth - 28,
-    });
-
-    if (showPrices) {
-      page.drawText(formatUSD(entry.basePrice), {
-        x: x + 14,
-        y: y - 286,
-        size: 11,
-        font: helveticaBold,
-        color: cBlack,
-      });
-    } else {
-      page.drawText("Precio bajo solicitud", {
-        x: x + 14,
-        y: y - 286,
+    if (!drewImage) {
+      const ph = "Sin foto";
+      page.drawText(ph, {
+        x: x + pad + (innerW - helveticaFont.widthOfTextAtSize(ph, 9)) / 2,
+        y: imgTop - imgH / 2,
         size: 9,
         font: helveticaFont,
         color: cGray,
       });
     }
 
-    if (x + cardWidth * 2 + 20 <= width) {
-      x += cardWidth + 20;
+    // Flowing text block below the image.
+    let ty = imgTop - imgH - 18;
+    ty = drawWrappedText(page, helveticaBold, entry.name, x + pad, ty, innerW, 12.5, cBlack) - 3;
+
+    page.drawText(`${entry.id} · ${entry.category}`, {
+      x: x + pad,
+      y: ty,
+      size: 8.5,
+      font: helveticaFont,
+      color: cGray,
+      maxWidth: innerW,
+    });
+    ty -= 17;
+
+    // Color swatch + name
+    page.drawRectangle({
+      x: x + pad,
+      y: ty - 2,
+      width: 11,
+      height: 11,
+      color: hexToRgbColor(entry.color.hex),
+      borderColor: cBorder,
+      borderWidth: 0.5,
+    });
+    page.drawText(`${entry.color.name} · ${entry.color.code}`, {
+      x: x + pad + 17,
+      y: ty,
+      size: 9,
+      font: helveticaBold,
+      color: cBlack,
+      maxWidth: innerW - 17,
+    });
+    ty -= 17;
+
+    const sizes = Array.from(
+      new Set(
+        (entry.skus || [])
+          .filter((sku) => !entry.color.id || sku.compositeCode.includes(entry.color.code))
+          .map((sku) => {
+            const parts = sku.compositeCode.split("-");
+            return parts.length >= 3 ? parts[parts.length - 1] : "";
+          })
+          .filter(Boolean)
+      )
+    );
+    page.drawText(`Tallas: ${sizes.length ? sizes.join(", ") : "Unica"}`, {
+      x: x + pad,
+      y: ty,
+      size: 8.5,
+      font: helveticaFont,
+      color: cBlack,
+      maxWidth: innerW,
+    });
+    ty -= 17;
+
+    // Separator + price flow right after the sizes line (never overlaps).
+    page.drawLine({
+      start: { x: x + pad, y: ty + 7 },
+      end: { x: x + cardWidth - pad, y: ty + 7 },
+      thickness: 0.7,
+      color: cLightGray,
+    });
+    ty -= 8;
+    if (showPrices) {
+      page.drawText(formatUSD(entry.basePrice), { x: x + pad, y: ty, size: 12, font: helveticaBold, color: cBlack });
     } else {
-      x = 40;
-      y -= cardHeight + 20;
+      page.drawText("Precio bajo solicitud", { x: x + pad, y: ty, size: 9, font: helveticaFont, color: cGray });
+    }
+
+    if (x + cardWidth * 2 + colGap <= width) {
+      x += cardWidth + colGap;
+    } else {
+      x = gridLeft;
+      y -= cardHeight + rowGap;
     }
   }
 
-  const pages = pdfDoc.getPages();
   pages.forEach((catalogPage, index) => {
     drawFooter(catalogPage, index + 1, pages.length, helveticaFont, options.brand);
   });
+
   return await pdfDoc.save();
 }
