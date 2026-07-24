@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { useUser } from "../UserContext";
 
-/* ─── Type Definitions ─── */
+/* ─── Types ─── */
 type CategoryTab =
   | "todos"
   | "diagramas"
@@ -37,7 +37,6 @@ interface WorkflowCard {
   visualMock?: {
     type: "badges" | "flow" | "pdf" | "rates" | "pwa" | "table";
     labels?: string[];
-    details?: string;
   };
 }
 
@@ -58,7 +57,7 @@ interface DiagramFlow {
   nodes: Array<{ title: string; subtitle: string; color: string }>;
 }
 
-/* ─── Interactive Process Diagrams ─── */
+/* ─── Diagram Flows Data ─── */
 const DIAGRAMS: DiagramFlow[] = [
   {
     id: "flow-ventas",
@@ -66,10 +65,10 @@ const DIAGRAMS: DiagramFlow[] = [
     icon: "🧾",
     desc: "Flujo desde la solicitud inicial del cliente hasta la entrega final y registro de pago.",
     nodes: [
-      { title: "1. Cotización (COT)", subtitle: "Propuesta informativa. No descuenta stock.", color: "#3B82F6" },
-      { title: "2. Confirmación", subtitle: "Cliente aprueba modelo, cantidad y talla.", color: "#8B5CF6" },
-      { title: "3. Nota de Entrega (NE)", subtitle: "Genera cobro y descuenta inventario.", color: "#EC4899" },
-      { title: "4. Despacho & Pago", subtitle: "Asignación de transporte y cobro USD/Bs.", color: "#10B981" },
+      { title: "1. Cotización (COT)", subtitle: "Propuesta informativa. No descuenta stock.", color: "#2A5B8A" },
+      { title: "2. Aprobación Cliente", subtitle: "Confirmación de modelos, tallas y cantidades.", color: "#7C3AED" },
+      { title: "3. Nota de Entrega (NE)", subtitle: "Genera cobro y descuenta inventario disponible.", color: "#B07A1A" },
+      { title: "4. Despacho & Pago", subtitle: "Asignación de envío y registro de cobro USD/Bs.", color: "#1E7A4D" },
     ],
   },
   {
@@ -78,10 +77,10 @@ const DIAGRAMS: DiagramFlow[] = [
     icon: "🤝",
     desc: "Control de mercancía prestada a aliados comerciales sin registro de venta inmediata.",
     nodes: [
-      { title: "1. Entrega Consignación", subtitle: "Se prestan prendas a aliado/vendedor.", color: "#F59E0B" },
-      { title: "2. Reporte de Ventas", subtitle: "El aliado reporta unidades vendidas.", color: "#6366F1" },
-      { title: "3. Abono o Devolución", subtitle: "Ingresa pago o devuelven prendas intactas.", color: "#8B5CF6" },
-      { title: "4. Liquidación Final", subtitle: "Saldo $0 y cierre formal del lote prestado.", color: "#10B981" },
+      { title: "1. Entrega Consignación", subtitle: "Se prestan uniformes a vendedora/aliado.", color: "#B07A1A" },
+      { title: "2. Reporte de Ventas", subtitle: "El aliado notifica las prendas vendidas.", color: "#2A5B8A" },
+      { title: "3. Abono o Devolución", subtitle: "Ingresa pago parcial o regresan prendas intactas.", color: "#7C3AED" },
+      { title: "4. Liquidación Final", subtitle: "Saldo $0 y cierre del registro prestado.", color: "#1E7A4D" },
     ],
   },
   {
@@ -90,10 +89,10 @@ const DIAGRAMS: DiagramFlow[] = [
     icon: "🔄",
     desc: "Protocolo para procesamiento de cambios de talla o prendas defectuosas.",
     nodes: [
-      { title: "1. Solicitud de Cliente", subtitle: "Recepción de prenda y comprobante NE.", color: "#EF4444" },
-      { title: "2. Evaluación Motivo", subtitle: "Cambio de talla vs. Defecto de fábrica.", color: "#F59E0B" },
-      { title: "3. Reingreso / Descarte", subtitle: "Regresa a stock o se da de baja.", color: "#3B82F6" },
-      { title: "4. Ajuste de Saldo", subtitle: "Emisión de reemplazo o saldo a favor.", color: "#10B981" },
+      { title: "1. Solicitud de Cliente", subtitle: "Recepción de prenda y comprobante NE.", color: "#C2392E" },
+      { title: "2. Evaluación Motivo", subtitle: "Cambio de talla vs. Defecto de fábrica.", color: "#B07A1A" },
+      { title: "3. Reingreso / Descarte", subtitle: "Vuelve a stock o se da de baja por falla.", color: "#2A5B8A" },
+      { title: "4. Ajuste de Saldo", subtitle: "Emisión de reemplazo o saldo a favor.", color: "#1E7A4D" },
     ],
   },
   {
@@ -102,10 +101,10 @@ const DIAGRAMS: DiagramFlow[] = [
     icon: "💱",
     desc: "Dinámica de precios base en USD y recálculo automático en Bolívares.",
     nodes: [
-      { title: "1. Precio Base USD ($)", subtitle: "Valor fijo de cada uniforme en catálogo.", color: "#059669" },
-      { title: "2. Actualización Tasa", subtitle: "Carga diaria de tasa BCV y Paralelo.", color: "#2563EB" },
+      { title: "1. Precio Base USD ($)", subtitle: "Valor fijo de cada uniforme en catálogo.", color: "#1E7A4D" },
+      { title: "2. Actualización Tasa", subtitle: "Carga diaria de tasa BCV y Paralelo.", color: "#2A5B8A" },
       { title: "3. Conversión Automática", subtitle: "Recálculo instantáneo en presupuestos.", color: "#7C3AED" },
-      { title: "4. Emisión con Tasa Fija", subtitle: "La NE congela la tasa del momento.", color: "#10B981" },
+      { title: "4. Emisión con Tasa Fija", subtitle: "La NE congela la tasa del momento.", color: "#1E7A4D" },
     ],
   },
 ];
@@ -124,20 +123,20 @@ const WORKFLOWS: WorkflowCard[] = [
       {
         step: 1,
         title: "Abrir enlace en el navegador",
-        desc: "Ingresa a la app desde Safari (en iPhone) o Chrome (en Android / Computadora).",
-        uiHint: "Navega a la URL oficial de KUniformes",
+        desc: "Ingresa a la app desde Safari (en iPhone) o Chrome (en Android / PC).",
+        uiHint: "Navega a la URL de KUniformes",
       },
       {
         step: 2,
         title: "Presionar botón de Instalación",
-        desc: "En el menú superior o barra lateral, haz clic en 'Instalar App' o selecciona 'Agregar a pantalla de inicio'.",
+        desc: "En el menú superior o en la barra lateral, presiona 'Instalar App' o 'Agregar a pantalla de inicio'.",
         uiHint: "iOS: Compartir ➔ Agregar a Inicio | Android: Instalar App",
       },
       {
         step: 3,
         title: "Activar Notificaciones Push",
         desc: "Acepta el permiso de notificaciones para recibir alertas instantáneas de stock bajo y despachos.",
-        uiHint: "Botón flotante 'Activar Notificaciones'",
+        uiHint: "Botón 'Activar Notificaciones'",
       },
     ],
     tip: "La app funcionará de manera fluida y ultra rápida ocupando muy poco espacio en tu dispositivo.",
@@ -386,7 +385,7 @@ const WORKFLOWS: WorkflowCard[] = [
   },
 ];
 
-/* ─── Expanded FAQs Data ─── */
+/* ─── FAQs Data ─── */
 const FAQS: FAQItem[] = [
   {
     id: "faq-1",
@@ -460,20 +459,6 @@ const FAQS: FAQItem[] = [
     answer: "Sí. Al abrir la Nota de Entrega, presiona 'Registrar Pago / Abono', introduce el monto recibido (en USD, Pago Móvil, Zelle o Efectivo en Bs) y la app calculará automáticamente el saldo pendiente del cliente.",
     roles: ["admin", "vendedor", "usuario"],
   },
-  {
-    id: "faq-11",
-    category: "inventario",
-    question: "¿Qué significan los géneros / modelos 'Damas', 'Caballeros', 'Unisex' y 'Niños'?",
-    answer: "Son etiquetas de clasificación para facilitar la búsqueda en el catálogo. Permiten que la vendedora filtre instantáneamente las prendas según la anatomía o público objetivo que solicita el cliente.",
-    roles: ["admin", "vendedor", "usuario"],
-  },
-  {
-    id: "faq-12",
-    category: "finanzas",
-    question: "¿Qué pasa si se pierde la conexión a Internet temporalmente?",
-    answer: "Gracias al Service Worker de la PWA, la app mantendrá cargada la interfaz en pantalla para consultar datos de catálogo e inventario. Una vez vuelva la señal, las acciones se sincronizarán con la base de datos en el servidor de Cloudflare.",
-    roles: ["admin", "vendedor", "usuario"],
-  },
 ];
 
 export default function ManualPage() {
@@ -509,16 +494,13 @@ export default function ManualPage() {
   /* Filter Workflows */
   const filteredWorkflows = useMemo(() => {
     return WORKFLOWS.filter((wf) => {
-      // Role Access check
       if (roleFilter !== "all" && !wf.roles.includes(roleFilter)) return false;
       if (!wf.roles.includes(userRole as any)) return false;
 
-      // Category Filter
       if (activeCategory !== "todos" && activeCategory !== "diagramas" && activeCategory !== "faqs" && wf.category !== activeCategory) {
         return false;
       }
 
-      // Search Query
       if (searchQuery.trim() !== "") {
         const q = searchQuery.toLowerCase();
         const matchTitle = wf.title.toLowerCase().includes(q);
@@ -558,78 +540,79 @@ export default function ManualPage() {
   };
 
   return (
-    <div style={{ paddingBottom: 60 }}>
-      {/* ── Banner Principal ── */}
+    <div style={{ paddingBottom: 60, fontFamily: "var(--font-sans, 'Hanken Grotesk', sans-serif)" }}>
+      {/* ── Banner Principal (Fondo Oscuro #101014 + Borde #26262E estilo K-Uniformes) ── */}
       <div
         style={{
-          background: "linear-gradient(135deg, #0F172A 0%, #1E293B 100%)",
-          borderRadius: 20,
-          padding: "32px 36px",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
-          boxShadow: "0 16px 36px rgba(15, 23, 42, 0.25)",
-          marginBottom: 28,
-          color: "#FFFFFF",
+          background: "var(--bg-sidebar, #101014)",
+          borderRadius: 14,
+          padding: "24px 28px",
+          border: "1px solid var(--border-sidebar, #26262E)",
+          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.12)",
+          marginBottom: 24,
+          color: "var(--text-sidebar, #EDEDEA)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
               <span
                 style={{
-                  fontSize: 26,
-                  background: "rgba(255, 255, 255, 0.1)",
-                  padding: "6px 12px",
-                  borderRadius: 12,
+                  fontSize: 22,
+                  background: "var(--bg-sidebar-tasa, #1A1A20)",
+                  padding: "4px 10px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border-sidebar, #26262E)",
                 }}
               >
                 📘
               </span>
-              <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0, letterSpacing: "-0.02em" }}>
-                Manual de Uso Completo & Centro Visual KUniformes
+              <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: "-0.01em", color: "#FFFFFF" }}>
+                Manual de Uso & Centro de Ayuda K-Uniformes
               </h1>
             </div>
-            <p style={{ margin: 0, color: "#94A3B8", fontSize: 15, maxWidth: 760, lineHeight: 1.5 }}>
-              Guía interactiva paso a paso para dominar todos los módulos del sistema: Inventario, Cotizaciones, Notas de Entrega, Consignación, Catálogos PDF y Tasas de Cambio.
+            <p style={{ margin: 0, color: "var(--text-sidebar-muted, #7E7E86)", fontSize: 13, maxWidth: 720, lineHeight: 1.5 }}>
+              Guía práctica interactiva para el manejo de Inventario, Catálogos PDF 2x2, Ventas, Consignaciones, Tasas de Cambio y Configuración del sistema.
             </p>
           </div>
 
           <div
             style={{
-              padding: "8px 14px",
-              borderRadius: 12,
-              background: "rgba(37, 99, 235, 0.2)",
-              border: "1px solid rgba(59, 130, 246, 0.4)",
-              fontSize: 13,
-              color: "#93C5FD",
+              padding: "6px 12px",
+              borderRadius: 8,
+              background: "var(--bg-sidebar-tasa, #1A1A20)",
+              border: "1px solid var(--border-sidebar, #26262E)",
+              fontSize: 12,
+              color: "var(--text-sidebar-muted, #7E7E86)",
               display: "flex",
               alignItems: "center",
               gap: 8,
             }}
           >
-            <span>👤 Tu Rol Activo:</span>
-            <strong style={{ color: "#FFF", textTransform: "capitalize" }}>
+            <span>Rol Activo:</span>
+            <strong style={{ color: "#FFFFFF", textTransform: "capitalize" }}>
               {userRole === "admin" ? "Administradora" : userRole === "usuario" ? "Operador" : "Vendedora"}
             </strong>
           </div>
         </div>
 
-        {/* Buscador Rápido */}
-        <div style={{ marginTop: 24, position: "relative", maxWidth: 640 }}>
+        {/* Buscador Rápido con Tipografía Monospaced en la búsqueda */}
+        <div style={{ marginTop: 20, position: "relative", maxWidth: 600 }}>
           <input
             type="text"
-            placeholder="🔍 Buscar función, proceso o duda (ej. 'Cotización', 'PDF 2x2', 'Consignación', 'Stock bajo')..."
+            placeholder="🔍 Buscar función (ej. 'Cotización', 'PDF 2x2', 'Consignación', 'Stock bajo')..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
               width: "100%",
-              padding: "14px 20px",
-              borderRadius: 14,
-              border: "1px solid rgba(255, 255, 255, 0.2)",
-              background: "rgba(15, 23, 42, 0.7)",
+              padding: "11px 16px",
+              borderRadius: 8,
+              border: "1px solid var(--border-sidebar, #26262E)",
+              background: "var(--bg-sidebar-tasa, #1A1A20)",
               color: "#FFFFFF",
-              fontSize: 15,
+              fontSize: 13,
               outline: "none",
-              boxShadow: "inset 0 2px 4px rgba(0,0,0,0.3)",
+              fontFamily: "var(--font-sans)",
             }}
           />
           {searchQuery && (
@@ -637,14 +620,14 @@ export default function ManualPage() {
               onClick={() => setSearchQuery("")}
               style={{
                 position: "absolute",
-                right: 16,
+                right: 14,
                 top: "50%",
                 transform: "translateY(-50%)",
                 background: "none",
                 border: "none",
-                color: "#94A3B8",
+                color: "#7E7E86",
                 cursor: "pointer",
-                fontSize: 18,
+                fontSize: 16,
               }}
             >
               ✕
@@ -654,10 +637,10 @@ export default function ManualPage() {
       </div>
 
       {/* ── Filtros por Rol y Categoría ── */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 28 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
         {/* Selector de Rol */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary, #6A6A63)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
             Filtrar por Rol:
           </span>
           {roleFilters.map((r) => {
@@ -670,14 +653,15 @@ export default function ManualPage() {
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
-                  padding: "6px 14px",
-                  borderRadius: 10,
-                  fontSize: 13,
+                  padding: "5px 12px",
+                  borderRadius: "var(--radius-base, 8px)",
+                  fontSize: 12,
                   fontWeight: isActive ? 600 : 500,
-                  border: isActive ? "1px solid #2563EB" : "1px solid #CBD5E1",
-                  background: isActive ? "#EFF6FF" : "#FFFFFF",
-                  color: isActive ? "#1D4ED8" : "#475569",
+                  border: isActive ? "1px solid var(--text-primary, #15151A)" : "1px solid var(--border-main, #E5E3DC)",
+                  background: isActive ? "var(--text-primary, #15151A)" : "var(--bg-card, #FFFFFF)",
+                  color: isActive ? "#FFFFFF" : "var(--text-secondary, #4A4A45)",
                   cursor: "pointer",
+                  transition: "all 0.15s ease",
                 }}
               >
                 <span>{r.icon}</span>
@@ -688,7 +672,7 @@ export default function ManualPage() {
         </div>
 
         {/* Pestañas de Categoría */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {categories.map((cat) => {
             const isActive = activeCategory === cat.id;
             return (
@@ -698,17 +682,17 @@ export default function ManualPage() {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 8,
-                  padding: "10px 16px",
-                  borderRadius: 12,
-                  fontSize: 14,
+                  gap: 6,
+                  padding: "8px 14px",
+                  borderRadius: "var(--radius-base, 8px)",
+                  fontSize: 12.5,
                   fontWeight: isActive ? 600 : 500,
-                  border: isActive ? "1px solid #2563EB" : "1px solid #E2E8F0",
-                  background: isActive ? "#2563EB" : "#FFFFFF",
-                  color: isActive ? "#FFFFFF" : "#1E293B",
+                  border: isActive ? "1px solid var(--text-primary, #15151A)" : "1px solid var(--border-main, #E5E3DC)",
+                  background: isActive ? "var(--text-primary, #15151A)" : "var(--bg-card, #FFFFFF)",
+                  color: isActive ? "#FFFFFF" : "var(--text-primary, #15151A)",
                   cursor: "pointer",
-                  boxShadow: isActive ? "0 4px 12px rgba(37, 99, 235, 0.2)" : "none",
                   transition: "all 0.15s ease",
+                  boxShadow: isActive ? "0 2px 6px rgba(0,0,0,0.08)" : "none",
                 }}
               >
                 <span>{cat.icon}</span>
@@ -721,50 +705,50 @@ export default function ManualPage() {
 
       {/* ── SECCIÓN: DIAGRAMAS DE PROCESO (FLUJOGRAMAS VISUALES) ── */}
       {(activeCategory === "todos" || activeCategory === "diagramas") && (
-        <div style={{ marginBottom: 40 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: "#0F172A", marginBottom: 16 }}>
+        <div style={{ marginBottom: 32 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary, #15151A)", marginBottom: 14 }}>
             📊 Diagramas de Procesos Principales
           </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
             {DIAGRAMS.map((diag) => (
               <div
                 key={diag.id}
                 style={{
-                  background: "#FFFFFF",
-                  borderRadius: 18,
-                  border: "1px solid #E2E8F0",
-                  padding: 22,
-                  boxShadow: "0 4px 16px rgba(0, 0, 0, 0.04)",
+                  background: "var(--bg-card, #FFFFFF)",
+                  borderRadius: "var(--radius-lg, 9px)",
+                  border: "1px solid var(--border-main, #E5E3DC)",
+                  padding: 18,
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                  <span style={{ fontSize: 24 }}>{diag.icon}</span>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 20 }}>{diag.icon}</span>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary, #15151A)", margin: 0 }}>
                     {diag.title}
                   </h3>
                 </div>
-                <p style={{ fontSize: 13, color: "#64748B", margin: "0 0 16px 0", lineHeight: 1.4 }}>
+                <p style={{ fontSize: 12, color: "var(--text-tertiary, #6A6A63)", margin: "0 0 14px 0", lineHeight: 1.4 }}>
                   {diag.desc}
                 </p>
 
-                {/* Nodes Timeline */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {/* Nodes Timeline con colores semánticos de KUniformes */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {diag.nodes.map((node, idx) => (
                     <div
                       key={idx}
                       style={{
-                        padding: "10px 14px",
-                        borderRadius: 10,
-                        background: "#F8FAFC",
-                        borderLeft: `4px solid ${node.color}`,
+                        padding: "8px 12px",
+                        borderRadius: "var(--radius-md, 6px)",
+                        background: "var(--bg-subtle, #F0EEE8)",
+                        borderLeft: `3.5px solid ${node.color}`,
                         display: "flex",
                         flexDirection: "column",
                       }}
                     >
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "#1E293B" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary, #15151A)" }}>
                         {node.title}
                       </span>
-                      <span style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
+                      <span style={{ fontSize: 11, color: "var(--text-secondary, #4A4A45)", marginTop: 2 }}>
                         {node.subtitle}
                       </span>
                     </div>
@@ -778,98 +762,99 @@ export default function ManualPage() {
 
       {/* ── SECCIÓN: GUÍAS PASO A PASO ── */}
       {activeCategory !== "diagramas" && activeCategory !== "faqs" && (
-        <div style={{ marginBottom: 40 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: "#0F172A", marginBottom: 16 }}>
+        <div style={{ marginBottom: 32 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary, #15151A)", marginBottom: 14 }}>
             💡 Guías de Uso Paso a Paso ({filteredWorkflows.length})
           </h2>
 
           {filteredWorkflows.length === 0 ? (
             <div
               style={{
-                padding: 40,
+                padding: 32,
                 textAlign: "center",
-                background: "#FFFFFF",
-                borderRadius: 16,
-                border: "1px dashed #CBD5E1",
-                color: "#64748B",
+                background: "var(--bg-card, #FFFFFF)",
+                borderRadius: "var(--radius-lg, 9px)",
+                border: "1px dashed var(--border-main, #E5E3DC)",
+                color: "var(--text-tertiary, #6A6A63)",
               }}
             >
-              <div style={{ fontSize: 36, marginBottom: 8 }}>🔎</div>
-              <div style={{ fontSize: 16, fontWeight: 600 }}>No se encontraron guías para tu búsqueda o filtro de rol</div>
-              <div style={{ fontSize: 14, marginTop: 4 }}>Intenta cambiar el filtro de rol a 'Todos los Roles' o modificar tu consulta.</div>
+              <div style={{ fontSize: 28, marginBottom: 6 }}>🔎</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>No se encontraron guías para tu consulta o filtro de rol</div>
+              <div style={{ fontSize: 12, marginTop: 4 }}>Cambia el filtro a 'Todos los Roles' o modifica los términos de búsqueda.</div>
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))", gap: 24 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))", gap: 18 }}>
               {filteredWorkflows.map((wf) => (
                 <div
                   key={wf.id}
                   style={{
-                    background: "#FFFFFF",
-                    borderRadius: 18,
-                    border: "1px solid #E2E8F0",
-                    padding: 24,
+                    background: "var(--bg-card, #FFFFFF)",
+                    borderRadius: "var(--radius-lg, 9px)",
+                    border: "1px solid var(--border-main, #E5E3DC)",
+                    padding: 20,
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "space-between",
-                    boxShadow: "0 4px 16px rgba(0, 0, 0, 0.04)",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
                   }}
                 >
                   <div>
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontSize: 26 }}>{wf.icon}</span>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 22 }}>{wf.icon}</span>
                         <div>
                           <span
                             style={{
-                              fontSize: 11,
+                              fontSize: 10,
                               fontWeight: 700,
                               textTransform: "uppercase",
-                              padding: "2px 8px",
-                              borderRadius: 6,
-                              background: "#EFF6FF",
-                              color: "#2563EB",
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              background: "var(--info-bg, #E6EEF7)",
+                              color: "var(--info, #2A5B8A)",
                             }}
                           >
                             {wf.badgeText}
                           </span>
-                          <h3 style={{ fontSize: 17, fontWeight: 700, margin: "4px 0 0 0", color: "#0F172A" }}>
+                          <h3 style={{ fontSize: 15, fontWeight: 700, margin: "3px 0 0 0", color: "var(--text-primary, #15151A)" }}>
                             {wf.title}
                           </h3>
                         </div>
                       </div>
                     </div>
 
-                    <p style={{ fontSize: 13, color: "#64748B", margin: "0 0 18px 0", lineHeight: 1.5 }}>
+                    <p style={{ fontSize: 12, color: "var(--text-tertiary, #6A6A63)", margin: "0 0 16px 0", lineHeight: 1.45 }}>
                       {wf.summary}
                     </p>
 
-                    {/* Timeline de Pasos */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
+                    {/* Timeline de Pasos con JetBrains Mono en los números */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 18 }}>
                       {wf.steps.map((st) => (
-                        <div key={st.step} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                        <div key={st.step} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                           <div
                             style={{
-                              width: 24,
-                              height: 24,
+                              width: 22,
+                              height: 22,
                               borderRadius: "50%",
-                              background: "#2563EB",
-                              color: "#FFF",
+                              background: "var(--text-primary, #15151A)",
+                              color: "#FFFFFF",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              fontSize: 12,
+                              fontSize: 11,
                               fontWeight: 700,
+                              fontFamily: "var(--font-mono, monospace)",
                               flexShrink: 0,
-                              marginTop: 2,
+                              marginTop: 1,
                             }}
                           >
-                            {st.step}
+                            0{st.step}
                           </div>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 14, fontWeight: 600, color: "#1E293B" }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary, #15151A)" }}>
                               {st.title}
                             </div>
-                            <div style={{ fontSize: 13, color: "#475569", marginTop: 2, lineHeight: 1.4 }}>
+                            <div style={{ fontSize: 12, color: "var(--text-secondary, #4A4A45)", marginTop: 2, lineHeight: 1.4 }}>
                               {st.desc}
                             </div>
                             {st.uiHint && (
@@ -877,12 +862,12 @@ export default function ManualPage() {
                                 style={{
                                   display: "inline-block",
                                   marginTop: 4,
-                                  padding: "2px 8px",
-                                  background: "#F1F5F9",
+                                  padding: "2px 6px",
+                                  background: "var(--bg-subtle, #F0EEE8)",
                                   borderRadius: 4,
-                                  fontSize: 11,
-                                  color: "#334155",
-                                  fontFamily: "monospace",
+                                  fontSize: 10.5,
+                                  color: "var(--text-secondary, #4A4A45)",
+                                  fontFamily: "var(--font-mono, monospace)",
                                 }}
                               >
                                 📍 {st.uiHint}
@@ -897,14 +882,14 @@ export default function ManualPage() {
                     {wf.visualMock && (
                       <div
                         style={{
-                          background: "#F8FAFC",
-                          border: "1px solid #E2E8F0",
-                          borderRadius: 12,
-                          padding: 12,
-                          marginBottom: 16,
+                          background: "var(--bg-subtle, #F0EEE8)",
+                          border: "1px solid var(--border-light, #F2F0EA)",
+                          borderRadius: "var(--radius-base, 8px)",
+                          padding: 10,
+                          marginBottom: 14,
                         }}
                       >
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", marginBottom: 8 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-tertiary, #6A6A63)", textTransform: "uppercase", marginBottom: 6 }}>
                           🖼️ Vista en Pantalla
                         </div>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -912,12 +897,12 @@ export default function ManualPage() {
                             <span
                               key={idx}
                               style={{
-                                padding: "4px 10px",
-                                borderRadius: 8,
+                                padding: "3px 8px",
+                                borderRadius: 5,
                                 background: "#FFFFFF",
-                                border: "1px solid #CBD5E1",
-                                fontSize: 12,
-                                color: "#0F172A",
+                                border: "1px solid var(--border-main, #E5E3DC)",
+                                fontSize: 11,
+                                color: "var(--text-primary, #15151A)",
                                 fontWeight: 500,
                               }}
                             >
@@ -932,18 +917,18 @@ export default function ManualPage() {
                   {wf.tip && (
                     <div
                       style={{
-                        padding: 10,
-                        background: "#FFFBEB",
-                        border: "1px solid #FDE68A",
-                        borderRadius: 10,
-                        fontSize: 12,
-                        color: "#92400E",
+                        padding: 8,
+                        background: "var(--warning-info-bg, #FBF6EC)",
+                        border: "1px solid var(--warning-info-border, #F0E6D2)",
+                        borderRadius: "var(--radius-base, 8px)",
+                        fontSize: 11.5,
+                        color: "var(--warning-info-text, #8A6A2A)",
                         display: "flex",
-                        gap: 8,
+                        gap: 6,
                         alignItems: "center",
                       }}
                     >
-                      <span style={{ fontSize: 14 }}>💡</span>
+                      <span style={{ fontSize: 13 }}>💡</span>
                       <span><strong>Consejo Pro:</strong> {wf.tip}</span>
                     </div>
                   )}
@@ -957,29 +942,29 @@ export default function ManualPage() {
       {/* ── SECCIÓN: PREGUNTAS FRECUENTES (FAQS) ACCORDION ── */}
       {(activeCategory === "todos" || activeCategory === "faqs") && (
         <div>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: "#0F172A", marginBottom: 16 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary, #15151A)", marginBottom: 14 }}>
             ❓ Preguntas Frecuentes ({filteredFaqs.length})
           </h2>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {filteredFaqs.map((faq) => {
               const isOpen = expandedFaq === faq.id;
               return (
                 <div
                   key={faq.id}
                   style={{
-                    background: "#FFFFFF",
-                    borderRadius: 14,
-                    border: isOpen ? "1px solid #2563EB" : "1px solid #E2E8F0",
+                    background: "var(--bg-card, #FFFFFF)",
+                    borderRadius: "var(--radius-base, 8px)",
+                    border: isOpen ? "1px solid var(--text-primary, #15151A)" : "1px solid var(--border-main, #E5E3DC)",
                     overflow: "hidden",
-                    boxShadow: isOpen ? "0 4px 12px rgba(37, 99, 235, 0.08)" : "none",
+                    transition: "all 0.15s ease",
                   }}
                 >
                   <button
                     onClick={() => toggleFaq(faq.id)}
                     style={{
                       width: "100%",
-                      padding: "16px 20px",
+                      padding: "14px 18px",
                       background: "none",
                       border: "none",
                       display: "flex",
@@ -987,18 +972,18 @@ export default function ManualPage() {
                       justifyContent: "space-between",
                       cursor: "pointer",
                       textAlign: "left",
-                      gap: 12,
+                      gap: 10,
                     }}
                   >
-                    <span style={{ fontSize: 15, fontWeight: 600, color: "#0F172A" }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary, #15151A)" }}>
                       {faq.question}
                     </span>
                     <span
                       style={{
-                        fontSize: 16,
-                        color: "#64748B",
+                        fontSize: 14,
+                        color: "var(--text-tertiary, #6A6A63)",
                         transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
-                        transition: "transform 0.2s ease",
+                        transition: "transform 0.15s ease",
                       }}
                     >
                       ▼
@@ -1008,26 +993,26 @@ export default function ManualPage() {
                   {isOpen && (
                     <div
                       style={{
-                        padding: "0 20px 18px 20px",
-                        fontSize: 14,
-                        color: "#334155",
-                        lineHeight: 1.6,
-                        borderTop: "1px solid #F1F5F9",
-                        marginTop: 4,
-                        paddingTop: 12,
+                        padding: "0 18px 16px 18px",
+                        fontSize: 13,
+                        color: "var(--text-secondary, #4A4A45)",
+                        lineHeight: 1.55,
+                        borderTop: "1px solid var(--border-light, #F2F0EA)",
+                        marginTop: 2,
+                        paddingTop: 10,
                       }}
                     >
                       <p style={{ margin: 0 }}>{faq.answer}</p>
                       {faq.tip && (
                         <div
                           style={{
-                            marginTop: 12,
-                            padding: "8px 12px",
-                            background: "#F0FDF4",
-                            border: "1px solid #BBF7D0",
-                            borderRadius: 8,
-                            fontSize: 12,
-                            color: "#166534",
+                            marginTop: 10,
+                            padding: "6px 10px",
+                            background: "var(--success-bg, #E8F3ED)",
+                            border: "1px solid var(--success-glow, rgba(70, 194, 142, 0.18))",
+                            borderRadius: 6,
+                            fontSize: 11.5,
+                            color: "var(--success, #1E7A4D)",
                             display: "flex",
                             alignItems: "center",
                             gap: 6,
