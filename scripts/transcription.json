@@ -1,0 +1,62 @@
+{
+  "_note": "Conteo sincerado leido de fotos. sizes order [XS,S,M,L,XL,2XL]. null = celda tapada/ilegible. status OK = checksum suma==total impreso.",
+  "model_totals_anotados": {"42168": 747, "42015": 305, "42122": 170, "42342": 155},
+  "sheets": [
+    {"model": "42168", "color": "Z15", "sizes": [0,8,10,6,1,0], "total": 25, "status": "OK", "conf": "med"},
+    {"model": "42168", "color": "Z35", "sizes": [8,4,2,3,5,4], "total": 26, "status": "OK", "conf": "med"},
+    {"model": "42168", "color": "Z3",  "sizes": [2,6,10,5,0,0], "total": 23, "status": "OK", "conf": "med"},
+    {"model": "42168", "color": "Z14", "sizes": [4,12,11,7,4,0], "total": 38, "status": "OK", "conf": "low", "note": "atribucion de columna dudosa"},
+    {"model": "42168", "color": "Z27", "sizes": [0,14,14,9,5,0], "total": 42, "status": "OK", "conf": "med"},
+    {"model": "42168", "color": "Z21", "sizes": [10,3,6,11,2,5], "total": 37, "status": "OK", "conf": "med"},
+    {"model": "42168", "color": "Z16", "sizes": [5,9,13,5,4,0], "total": 36, "status": "OK", "conf": "high"},
+    {"model": "42168", "color": "Z8",  "sizes": [7,7,7,5,4,5], "total": 35, "status": "OK", "conf": "high"},
+    {"model": "42168", "color": "Z4",  "sizes": [4,13,10,6,3,0], "total": 36, "status": "OK", "conf": "high"},
+    {"model": "42168", "color": "Z29", "sizes": [2,9,10,6,2,0], "total": 29, "status": "OK", "conf": "low", "note": "rotada"},
+    {"model": "42168", "color": "Z25", "sizes": [1,9,11,10,4,0], "total": 35, "status": "OK", "conf": "low", "note": "rotada"},
+    {"model": "42168", "color": "Z11", "sizes": [0,4,9,6,1,3], "total": 23, "status": "OK", "conf": "low", "note": "rotada"},
+    {"model": "42168", "color": "Z26", "sizes": [12,21,20,17,8,5], "total": 83, "status": "OK", "conf": "med", "note": "vista directa"},
+    {"model": "42168", "color": "Z40", "sizes": [11,6,3,3,null,2], "total": 28, "status": "VERIFICAR", "conf": "low", "note": "XL tapado; suma visible 25 vs 28"},
+    {"model": "42168", "color": "Z34", "sizes": [3,10,9,3,0,null], "total": 34, "status": "VERIFICAR", "conf": "low", "note": "2XL tapado; suma visible 25 vs 34"},
+    {"model": "42168", "color": "Z22", "sizes": [9,18,7,9,3,5], "total": 52, "status": "VERIFICAR", "conf": "low", "note": "suma 51 vs 52"},
+    {"model": "42168", "color": "Z17", "sizes": [0,4,7,5,0,null], "total": 21, "status": "VERIFICAR", "conf": "low", "note": "2XL tapado; suma visible 16 vs 21"},
+    {"model": "42168", "color": "Z9",  "sizes": [3,4,9,14,6,5], "total": 42, "status": "VERIFICAR", "conf": "low", "note": "suma 41 vs 42"},
+    {"model": "42168", "color": "Z1",  "sizes": [null,null,null,null,null,null], "total": null, "status": "VERIFICAR", "conf": "low", "note": "planilla no legible (Marron Z1)"},
+    {"model": "42168", "color": "Z19", "sizes": [null,null,null,null,null,null], "total": null, "status": "VERIFICAR", "conf": "low", "note": "Verde Navidad: columna en blanco"},
+
+    {"model": "42019", "color": "Z2",  "sizes": [0,8,16,8,9,4], "total": 45, "status": "OK", "conf": "high"},
+    {"model": "42019", "color": "Z27", "sizes": [0,10,12,8,5,2], "total": 37, "status": "OK", "conf": "high", "note": "columna sin fecha"},
+    {"model": "42019", "color": "Z10", "sizes": [0,8,12,7,7,1], "total": 35, "status": "OK", "conf": "med", "note": "columna sin fecha"},
+    {"model": "42019", "color": "Z25", "sizes": [10,14,10,10,5,0], "total": 49, "status": "OK", "conf": "med", "note": "columna sin fecha"},
+    {"model": "42019", "color": "Z22", "sizes": [9,11,9,6,1,0], "total": 36, "status": "OK", "conf": "med", "note": "columna sin fecha"},
+    {"model": "42019", "color": "Z21", "sizes": [0,2,12,5,9,null], "total": 29, "status": "VERIFICAR", "conf": "med", "note": "2XL tapado"},
+    {"model": "42019", "color": "Z1",  "sizes": [0,10,13,10,3,null], "total": 47, "status": "VERIFICAR", "conf": "low", "note": "2XL tapado; suma visible 36 vs 47"},
+    {"model": "42019", "color": "Z16", "sizes": [0,13,8,4,null,null], "total": 43, "status": "VERIFICAR", "conf": "low", "note": "XL/2XL tapados"},
+    {"model": "42019", "color": "Z14", "sizes": [0,9,14,10,5,null], "total": 48, "status": "VERIFICAR", "conf": "low", "note": "2XL tapado; suma visible 38 vs 48"},
+
+    {"model": "42015", "color": "Z21", "sizes": [4,7,8,4,0,null], "total": 31, "status": "VERIFICAR", "conf": "low"},
+    {"model": "42015", "color": "Z24", "sizes": [6,6,10,5,0,null], "total": 38, "status": "VERIFICAR", "conf": "low", "note": "color Rosa Vieja incierto"},
+    {"model": "42015", "color": "Z8",  "sizes": [null,null,null,2,2,null], "total": 4, "status": "VERIFICAR", "conf": "low", "note": "unidades sueltas"},
+    {"model": "42015", "color": "Z9",  "sizes": [null,1,1,null,null,null], "total": 2, "status": "VERIFICAR", "conf": "low"},
+    {"model": "42015", "color": "Z2",  "sizes": [0,0,3,1,2,1], "total": 7, "status": "VERIFICAR", "conf": "low", "note": "Azul Cielo; modelo viejo"},
+
+    {"model": "42187", "color": "Z22", "sizes": [2,12,10,8,0,3], "total": 35, "status": "OK", "conf": "med"},
+    {"model": "42187", "color": "Z20", "sizes": [4,16,15,0,2,null], "total": 39, "status": "VERIFICAR", "conf": "low", "note": "suma visible 37 vs 39"},
+    {"model": "42187", "color": "Z35", "sizes": [0,6,null,0,0,0], "total": 28, "status": "VERIFICAR", "conf": "low", "note": "Marron; '19 despachados'"},
+
+    {"model": "42342", "color": "Z21", "sizes": [10,1,0,5,3,0], "total": 19, "status": "OK", "conf": "low", "note": "rotada"},
+    {"model": "42342", "color": "Z32", "sizes": [13,7,9,5,0,null], "total": 41, "status": "VERIFICAR", "conf": "low", "note": "Amarillo"},
+    {"model": "42342", "color": "Z20", "sizes": [12,5,5,3,0,null], "total": 28, "status": "VERIFICAR", "conf": "low", "note": "Morado"},
+    {"model": "42342", "color": "Z7",  "sizes": [13,2,6,3,0,null], "total": 30, "status": "VERIFICAR", "conf": "low", "note": "Azul Bebe"},
+
+    {"model": "42122", "color": "Z35", "sizes": [8,6,8,7,5,4], "total": 38, "status": "OK", "conf": "low", "note": "codigo leido 42102"},
+    {"model": "42122", "color": "Z22", "sizes": [10,11,8,6,4,null], "total": 43, "status": "VERIFICAR", "conf": "med", "note": "2XL tapado"},
+    {"model": "42122", "color": "Z13", "sizes": [null,null,null,2,2,null], "total": 4, "status": "VERIFICAR", "conf": "low", "note": "Naranja sueltas"},
+
+    {"model": "42108", "color": "Z34", "sizes": [9,6,1,4,3,3], "total": 26, "status": "OK", "conf": "low"},
+    {"model": "42108", "color": "Z40", "sizes": [0,0,1,1,0,0], "total": 2, "status": "OK", "conf": "med"},
+    {"model": "42108", "color": "Z14", "sizes": [0,1,3,2,1,0], "total": 7, "status": "VERIFICAR", "conf": "low"},
+    {"model": "42108", "color": "Z31", "sizes": [0,0,0,1,0,0], "total": 1, "status": "VERIFICAR", "conf": "low", "note": "Verde Agua"},
+    {"model": "42108", "color": "Z22", "sizes": [0,0,0,2,2,0], "total": 4, "status": "VERIFICAR", "conf": "low"},
+    {"model": "42108", "color": "Z26", "sizes": [0,1,1,0,0,0], "total": 2, "status": "VERIFICAR", "conf": "low"}
+  ]
+}

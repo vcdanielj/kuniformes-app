@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getConfigData, getExpensesData, createExpenseAction, addCategory } from "@/lib/db/actions";
+import { getConfigData, getExpensesData, createExpenseAction, updateExpenseAction, deleteExpenseAction, addCategory } from "@/lib/db/actions";
 import { formatBs, formatRate, formatUSD } from "@/lib/utils";
 import { SETTINGS_KEYS, SYSTEM_DEFAULTS } from "@/lib/app-config";
 import { useUser } from "../UserContext";
@@ -33,6 +33,62 @@ export default function GastosPage() {
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  async function handleDeleteExpense(id: number) {
+    if (!window.confirm("¿Eliminar este gasto? Esta acción no se puede deshacer.")) return;
+    setDeletingId(id);
+    setErrorMsg("");
+    const res = await deleteExpenseAction(id);
+    setDeletingId(null);
+    if (res.success) {
+      await loadData();
+    } else {
+      setErrorMsg(res.error || "No se pudo eliminar el gasto.");
+    }
+  }
+
+  function handleOpenEdit(row: any) {
+    const rowCurrency = (row.moneda || "USD").trim().toUpperCase();
+    const rowUsesBolivares = isBolivarCurrency(rowCurrency);
+    setEditingId(row.id);
+    setErrorMsg("");
+    setNote(row.nota || "");
+    setDate(row.fecha || new Date().toISOString().slice(0, 10));
+    const matchingCategory = expenseCategories.find((c) => c.name === row.cat);
+    if (matchingCategory) {
+      setCategoryId(String(matchingCategory.id));
+    }
+    setCurrency(rowUsesBolivares ? "BS" : "USD");
+    setAmountOriginal(
+      String(rowUsesBolivares ? (row.montoOriginal ?? row.monto ?? "") : (row.monto ?? ""))
+    );
+    const inferredSource: FxSource = row.tasaSource === "bcv" ? "bcv" : "manual";
+    setRateSource(rowUsesBolivares ? inferredSource : "paralelo");
+    setRateValue(
+      rowUsesBolivares && row.tasa
+        ? String(row.tasa)
+        : String(SYSTEM_DEFAULTS.rates.paralelo)
+    );
+    setShowModal(true);
+  }
+
+  function resetExpenseForm() {
+    setEditingId(null);
+    setNote("");
+    setAmountOriginal("");
+    setCurrency("USD");
+    setRateSource("paralelo");
+    setRateValue(
+      configDb?.settings?.[SETTINGS_KEYS.parallelRate] || String(SYSTEM_DEFAULTS.rates.paralelo)
+    );
+  }
+
+  function handleCloseModal() {
+    setShowModal(false);
+    resetExpenseForm();
+  }
 
   // Form State
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -68,22 +124,24 @@ export default function GastosPage() {
     }
   }
 
+  const canManage = user?.role === "admin" || user?.role === "usuario";
+
   useEffect(() => {
-    if (user?.role === "admin") {
+    if (canManage) {
       loadData();
       return;
     }
 
     setLoading(false);
-  }, [user?.role]);
+  }, [canManage]);
 
-  if (user && user.role !== "admin") {
+  if (user && !canManage) {
     return (
       <div className="access-state-card animate-pop-in" style={{ marginTop: 40 }}>
         <div className="access-state-icon" aria-hidden="true">!</div>
         <h2 className="state-title">Acceso no autorizado</h2>
         <p className="state-copy">
-          Solo administraci&oacute;n puede consultar y registrar gastos.
+          No tienes acceso al m&oacute;dulo de gastos.
         </p>
       </div>
     );
@@ -102,8 +160,7 @@ export default function GastosPage() {
       return;
     }
 
-    setSubmitting(true);
-    const res = await createExpenseAction({
+    const payload = {
       date,
       note,
       categoryId: Number(categoryId),
@@ -111,22 +168,21 @@ export default function GastosPage() {
       currency,
       amountOriginal: amount,
       rateUsed: usesBolivares ? parsedRate : 1,
-      rateSource: usesBolivares ? rateSource : "manual",
-    });
+      rateSource: usesBolivares ? rateSource : ("manual" as FxSource),
+    };
+
+    setSubmitting(true);
+    const res = editingId != null
+      ? await updateExpenseAction({ id: editingId, ...payload })
+      : await createExpenseAction(payload);
     setSubmitting(false);
 
     if (res.success) {
       setShowModal(false);
-      setNote("");
-      setAmountOriginal("");
-      setCurrency("USD");
-      setRateSource("paralelo");
-      setRateValue(
-        configDb?.settings?.[SETTINGS_KEYS.parallelRate] || String(SYSTEM_DEFAULTS.rates.paralelo)
-      );
+      resetExpenseForm();
       loadData();
     } else {
-      setErrorMsg(res.error || "Error al registrar gasto");
+      setErrorMsg(res.error || (editingId != null ? "Error al actualizar gasto" : "Error al registrar gasto"));
     }
   }
 
@@ -184,16 +240,16 @@ export default function GastosPage() {
         <div className="table-container">
           <div className="table-header-row">
             <h3>Gastos del mes</h3>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>{plusIcon} Registrar gasto</button>
+            <button className="btn btn-primary btn-sm" onClick={() => { resetExpenseForm(); setErrorMsg(""); setShowModal(true); }}>{plusIcon} Registrar gasto</button>
           </div>
           <div className="responsive-table-scroll">
           <div style={{
-            display: "grid", gridTemplateColumns: "0.8fr 2.5fr 1fr 1fr",
-            gap: 14, minWidth: 720, padding: "13px 22px", borderBottom: "1px solid var(--border-header)",
+            display: "grid", gridTemplateColumns: "0.8fr 2.4fr 1fr 1fr 84px",
+            gap: 14, minWidth: 760, padding: "13px 22px", borderBottom: "1px solid var(--border-header)",
             font: "600 10.5px/1 var(--font-sans)", letterSpacing: "0.1em",
             textTransform: "uppercase", color: "var(--text-muted)",
           }}>
-            <span>Fecha</span><span>Descripción</span><span>Categoría</span><span style={{ textAlign: "right" }}>Monto</span>
+            <span>Fecha</span><span>Descripción</span><span>Categoría</span><span style={{ textAlign: "right" }}>Monto</span><span />
           </div>
           
           {expensesList.length === 0 ? (
@@ -203,7 +259,8 @@ export default function GastosPage() {
           ) : (
             expensesList.map((e) => (
               <div key={e.id} className="table-row" style={{
-                display: "grid", gridTemplateColumns: "0.8fr 2.5fr 1fr 1fr", gap: 14, minWidth: 720,
+                display: "grid", gridTemplateColumns: "0.8fr 2.4fr 1fr 1fr 84px", gap: 14, minWidth: 760,
+                alignItems: "center",
               }}>
                 <span style={{ fontSize: "var(--text-base2)", color: "var(--text-tertiary)" }}>{e.fecha}</span>
                 <span style={{ fontSize: "var(--text-md)", fontWeight: 500 }}>{e.nota}</span>
@@ -214,6 +271,35 @@ export default function GastosPage() {
                     <span style={{ fontSize: "var(--text-sm2)", color: "var(--text-muted)" }}>
                       {formatBs(e.montoOriginal)} @ {formatRate(e.tasa || 0)}
                     </span>
+                  ) : null}
+                </span>
+                <span style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+                  {canManage ? (
+                    <>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        title="Editar gasto"
+                        aria-label="Editar gasto"
+                        onClick={() => handleOpenEdit(e)}
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn icon-btn-danger"
+                        title="Eliminar gasto"
+                        aria-label="Eliminar gasto"
+                        disabled={deletingId === e.id}
+                        onClick={() => handleDeleteExpense(e.id)}
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" />
+                        </svg>
+                      </button>
+                    </>
                   ) : null}
                 </span>
               </div>
@@ -255,11 +341,11 @@ export default function GastosPage() {
         <div className="modal-backdrop">
           <div className="modal-content animate-pop-in" style={{ maxWidth: 450 }}>
             <div className="modal-header">
-              <h4>Registrar Gasto</h4>
-              <button className="btn-close" onClick={() => setShowModal(false)}>×</button>
+              <h4>{editingId != null ? "Editar Gasto" : "Registrar Gasto"}</h4>
+              <button className="btn-close" onClick={handleCloseModal}>×</button>
             </div>
             <form onSubmit={handleSubmit}>
-              {errorMsg && <div className="alert alert-danger" style={{ marginBottom: 12 }}>{errorMsg}</div>}
+
               
               <div className="form-group">
                 <label>Descripción / Detalle</label>
@@ -358,11 +444,16 @@ export default function GastosPage() {
                 </div>
               )}
 
-              <div className="modal-footer" style={{ marginTop: 18 }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>
-                <button type="submit" className="btn btn-primary" disabled={submitting}>
-                  {submitting ? "Registrando..." : "Registrar"}
-                </button>
+              <div className="modal-footer-sticky">
+                {errorMsg && <div className="alert alert-danger" style={{ marginBottom: 0 }}>{errorMsg}</div>}
+                <div className="sales-form-actions">
+                  <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>Cancelar</button>
+                  <button type="submit" className="btn btn-primary" disabled={submitting}>
+                    {submitting
+                      ? (editingId != null ? "Guardando..." : "Registrando...")
+                      : (editingId != null ? "Guardar cambios" : "Registrar")}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

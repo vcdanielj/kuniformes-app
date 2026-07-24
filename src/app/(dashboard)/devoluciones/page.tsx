@@ -6,10 +6,12 @@ import {
   getSalesAndQuotesData,
   getSaleItemsAction,
   createReturnAction,
+  anularReturnAction,
   getInventoryModels,
 } from "@/lib/db/actions";
 import { formatUSD } from "@/lib/utils";
 import { SearchCreateSelect, type SearchCreateOption } from "@/components/ui/SearchCreateSelect";
+import { useUser } from "../UserContext";
 
 function tipoBadge(t: string): string {
   return t === "Cambio" ? "badge badge-info" : "badge badge-warning";
@@ -20,6 +22,7 @@ function estadoBadge(e: string): string {
 }
 
 export default function DevolucionesPage() {
+  const user = useUser();
   const [loading, setLoading] = useState(true);
   const [returnsList, setReturnsList] = useState<any[]>([]);
   const [salesList, setSalesList] = useState<any[]>([]);
@@ -224,6 +227,19 @@ export default function DevolucionesPage() {
     });
   }
 
+  async function handleAnular(r: any) {
+    if (!window.confirm(`¿Anular la devolución ${r.ref}? Se revertirá el stock reincorporado y, si aplicó saldo a favor, se descontará.`)) {
+      return;
+    }
+    const res = await anularReturnAction(r.id);
+    if (res.success) {
+      setErrorMsg("");
+      loadData();
+    } else {
+      setErrorMsg(res.error || "Error al anular la devolución");
+    }
+  }
+
   if (loading) {
     return (
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "300px" }}>
@@ -234,6 +250,9 @@ export default function DevolucionesPage() {
 
   return (
     <div className="animate-fade-in">
+      {errorMsg && !showModal && (
+        <div className="alert alert-danger" style={{ marginBottom: 14 }}>{errorMsg}</div>
+      )}
       <div className="table-container">
         <div className="table-header-row">
           <h3>Devoluciones y cambios</h3>
@@ -270,7 +289,18 @@ export default function DevolucionesPage() {
               <span style={{ fontSize: "var(--text-base2)", color: "var(--text-secondary)" }}>
                 {r.motivo} {r.resolution && <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>({r.resolution})</span>}
               </span>
-              <span style={{ textAlign: "right" }}><span className={estadoBadge(r.estado)}>{r.estado}</span></span>
+              <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+                <span className={estadoBadge(r.estado)}>{r.estado}</span>
+                {user?.role === "admin" && r.rawStatus === "procesada" && (
+                  <button
+                    className="btn btn-secondary btn-xs"
+                    style={{ color: "var(--danger)" }}
+                    onClick={() => handleAnular(r)}
+                  >
+                    Anular
+                  </button>
+                )}
+              </span>
             </div>
           ))
         )}
@@ -286,7 +316,7 @@ export default function DevolucionesPage() {
               <button className="btn-close" onClick={() => setShowModal(false)}>×</button>
             </div>
             <form onSubmit={handleSubmit}>
-              {errorMsg && <div className="alert alert-danger" style={{ marginBottom: 12 }}>{errorMsg}</div>}
+
               
               <div className="form-group">
                 <SearchCreateSelect
@@ -418,11 +448,14 @@ export default function DevolucionesPage() {
                 </div>
               )}
 
-              <div className="modal-footer" style={{ marginTop: 18 }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>
-                <button type="submit" className="btn btn-primary" disabled={submitting}>
-                  {submitting ? "Procesando..." : "Registrar"}
-                </button>
+              <div className="modal-footer-sticky">
+                {errorMsg && <div className="alert alert-danger" style={{ marginBottom: 0 }}>{errorMsg}</div>}
+                <div className="sales-form-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>
+                  <button type="submit" className="btn btn-primary" disabled={submitting}>
+                    {submitting ? "Procesando..." : "Registrar"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

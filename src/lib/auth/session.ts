@@ -24,7 +24,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "vendedor";
+  role: "admin" | "vendedor" | "usuario";
   active: boolean;
 }
 
@@ -103,7 +103,7 @@ export async function validateSession(sessionId: string): Promise<{ session: Ses
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role as "admin" | "vendedor",
+        role: user.role as "admin" | "vendedor" | "usuario",
         active: !!user.active,
       },
     };

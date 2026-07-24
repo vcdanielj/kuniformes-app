@@ -11,18 +11,25 @@ export interface AuditParams {
 
 /**
  * Logs an administrative action to the auditLog table.
- * Automatically resolves the logged-in user from session cookies.
+ *
+ * Callers that already resolved the user (via requireAuth/requireAdmin) should
+ * pass `knownUserId` to avoid a redundant session lookup (a sessions⋈users join)
+ * on every mutation. Falls back to resolving from session cookies otherwise.
  */
-export async function logAuditAction(params: AuditParams) {
+export async function logAuditAction(params: AuditParams, knownUserId?: string) {
   try {
-    const { user } = await getSessionUser();
-    if (!user) {
-      console.warn("Audit log attempted without authenticated user:", params);
-      return;
+    let userId = knownUserId;
+    if (!userId) {
+      const { user } = await getSessionUser();
+      if (!user) {
+        console.warn("Audit log attempted without authenticated user:", params);
+        return;
+      }
+      userId = user.id;
     }
 
     await db.insert(auditLog).values({
-      userId: user.id,
+      userId,
       action: params.action,
       entity: params.entity,
       entityId: params.entityId || null,

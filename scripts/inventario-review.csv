@@ -1,0 +1,386 @@
+modelo,modelo_nombre,color,color_nombre,talla,composite_code,stock_actual,propuesto,contado,confianza,nota
+22S,Gorro Quirúrgico Estampado,22001,Estampado 22001,,22S-22001,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22003,Estampado 22003,,22S-22003,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22009,Estampado 22009,,22S-22009,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22010,Estampado 22010,,22S-22010,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22011,Estampado 22011,,22S-22011,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22016,Estampado 22016,,22S-22016,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22021,Estampado 22021,,22S-22021,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22022,Estampado 22022,,22S-22022,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22026,Estampado 22026,,22S-22026,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22029,Estampado 22029,,22S-22029,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22030,Estampado 22030,,22S-22030,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22035,Estampado 22035,,22S-22035,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22036,Estampado 22036,,22S-22036,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22037,Estampado 22037,,22S-22037,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22041,Estampado 22041,,22S-22041,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22043,Estampado 22043,,22S-22043,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22046,Estampado 22046,,22S-22046,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22047,Estampado 22047,,22S-22047,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22048,Estampado 22048,,22S-22048,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22049,Estampado 22049,,22S-22049,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22051,Estampado 22051,,22S-22051,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22057,Estampado 22057,,22S-22057,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22091,Estampado 22091,,22S-22091,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22092,Estampado 22092,,22S-22092,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22093,Estampado 22093,,22S-22093,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22102,Estampado 22102,,22S-22102,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22103,Estampado 22103,,22S-22103,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22106,Estampado 22106,,22S-22106,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22109,Estampado 22109,,22S-22109,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22113,Estampado 22113,,22S-22113,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22118,Estampado 22118,,22S-22118,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22132,Estampado 22132,,22S-22132,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22133,Estampado 22133,,22S-22133,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22134,Estampado 22134,,22S-22134,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22136,Estampado 22136,,22S-22136,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22137,Estampado 22137,,22S-22137,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22138,Estampado 22138,,22S-22138,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22140,Estampado 22140,,22S-22140,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22141,Estampado 22141,,22S-22141,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22142,Estampado 22142,,22S-22142,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22143,Estampado 22143,,22S-22143,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22145,Estampado 22145,,22S-22145,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22147,Estampado 22147,,22S-22147,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22151,Estampado 22151,,22S-22151,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22153,Estampado 22153,,22S-22153,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22156,Estampado 22156,,22S-22156,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22159,Estampado 22159,,22S-22159,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22160,Estampado 22160,,22S-22160,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22161,Estampado 22161,,22S-22161,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22162,Estampado 22162,,22S-22162,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22163,Estampado 22163,,22S-22163,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22168,Estampado 22168,,22S-22168,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22169,Estampado 22169,,22S-22169,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22170,Estampado 22170,,22S-22170,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22171,Estampado 22171,,22S-22171,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22172,Estampado 22172,,22S-22172,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22174,Estampado 22174,,22S-22174,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22177,Estampado 22177,,22S-22177,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22178,Estampado 22178,,22S-22178,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22184,Estampado 22184,,22S-22184,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22186,Estampado 22186,,22S-22186,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22195,Estampado 22195,,22S-22195,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22196,Estampado 22196,,22S-22196,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22199,Estampado 22199,,22S-22199,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22203,Estampado 22203,,22S-22203,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22204,Estampado 22204,,22S-22204,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22205,Estampado 22205,,22S-22205,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22210,Estampado 22210,,22S-22210,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22212,Estampado 22212,,22S-22212,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22214,Estampado 22214,,22S-22214,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22221,Estampado 22221,,22S-22221,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22225,Estampado 22225,,22S-22225,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22228,Estampado 22228,,22S-22228,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22229,Estampado 22229,,22S-22229,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22234,Estampado 22234,,22S-22234,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22238,Estampado 22238,,22S-22238,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22251,Estampado 22251,,22S-22251,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22254,Estampado 22254,,22S-22254,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22255,Estampado 22255,,22S-22255,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22256,Estampado 22256,,22S-22256,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22258,Estampado 22258,,22S-22258,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22290,Estampado 22290,,22S-22290,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22292,Estampado 22292,,22S-22292,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22293,Estampado 22293,,22S-22293,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22295,Estampado 22295,,22S-22295,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22006,Estampado 22006,,22S-22006,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22027,Estampado 22027,,22S-22027,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22032,Estampado 22032,,22S-22032,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22084,Estampado 22084,,22S-22084,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22311,Estampado 22311,,22S-22311,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22317,Estampado 22317,,22S-22317,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22325,Estampado 22325,,22S-22325,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22357,Estampado 22357,,22S-22357,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22358,Estampado 22358,,22S-22358,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22365,Estampado 22365,,22S-22365,10,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22367,Estampado 22367,,22S-22367,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22370,Estampado 22370,,22S-22370,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22025,Estampado 22025,,22S-22025,5,0,gorros->0,,sin conteo de gorros
+22S,Gorro Quirúrgico Estampado,22339,Estampado 22339,,22S-22339,5,0,gorros->0,,sin conteo de gorros
+42015,Conjunto Mao - Jogger con cierre,Z21,Negro,XS,42015-Z21-XS,20,4,contado,low,
+42015,Conjunto Mao - Jogger con cierre,Z21,Negro,S,42015-Z21-S,25,7,contado,low,
+42015,Conjunto Mao - Jogger con cierre,Z21,Negro,M,42015-Z21-M,25,8,contado,low,
+42015,Conjunto Mao - Jogger con cierre,Z21,Negro,L,42015-Z21-L,20,4,contado,low,
+42015,Conjunto Mao - Jogger con cierre,Z21,Negro,XL,42015-Z21-XL,10,0,contado,low,
+42015,Conjunto Mao - Jogger con cierre,Z22,Azul Rey,XS,42015-Z22-XS,15,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z22,Azul Rey,S,42015-Z22-S,10,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z22,Azul Rey,M,42015-Z22-M,10,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z22,Azul Rey,L,42015-Z22-L,10,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z22,Azul Rey,XL,42015-Z22-XL,5,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z1,Marrón Claro,XS,42015-Z1-XS,5,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z1,Marrón Claro,S,42015-Z1-S,15,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z1,Marrón Claro,M,42015-Z1-M,15,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z1,Marrón Claro,L,42015-Z1-L,10,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z1,Marrón Claro,XL,42015-Z1-XL,5,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z2,Azul Celeste,XS,42015-Z2-XS,5,0,contado,low,Azul Cielo; modelo viejo
+42015,Conjunto Mao - Jogger con cierre,Z2,Azul Celeste,S,42015-Z2-S,15,0,contado,low,Azul Cielo; modelo viejo
+42015,Conjunto Mao - Jogger con cierre,Z2,Azul Celeste,M,42015-Z2-M,15,3,contado,low,Azul Cielo; modelo viejo
+42015,Conjunto Mao - Jogger con cierre,Z2,Azul Celeste,L,42015-Z2-L,10,1,contado,low,Azul Cielo; modelo viejo
+42015,Conjunto Mao - Jogger con cierre,Z2,Azul Celeste,XL,42015-Z2-XL,5,2,contado,low,Azul Cielo; modelo viejo
+42015,Conjunto Mao - Jogger con cierre,Z13,Naranja,XS,42015-Z13-XS,5,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z13,Naranja,S,42015-Z13-S,15,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z13,Naranja,M,42015-Z13-M,15,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z13,Naranja,L,42015-Z13-L,10,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z13,Naranja,XL,42015-Z13-XL,5,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z15,Lila,XS,42015-Z15-XS,5,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z15,Lila,S,42015-Z15-S,15,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z15,Lila,M,42015-Z15-M,15,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z15,Lila,L,42015-Z15-L,10,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z15,Lila,XL,42015-Z15-XL,5,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z16,Verde Oliva,XS,42015-Z16-XS,5,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z16,Verde Oliva,S,42015-Z16-S,15,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z16,Verde Oliva,M,42015-Z16-M,15,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z16,Verde Oliva,L,42015-Z16-L,10,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z16,Verde Oliva,XL,42015-Z16-XL,5,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z24,Rosa Vieja,XS,42015-Z24-XS,5,6,contado,low,color Rosa Vieja incierto
+42015,Conjunto Mao - Jogger con cierre,Z24,Rosa Vieja,S,42015-Z24-S,15,6,contado,low,color Rosa Vieja incierto
+42015,Conjunto Mao - Jogger con cierre,Z24,Rosa Vieja,M,42015-Z24-M,15,10,contado,low,color Rosa Vieja incierto
+42015,Conjunto Mao - Jogger con cierre,Z24,Rosa Vieja,L,42015-Z24-L,5,5,contado,low,color Rosa Vieja incierto
+42015,Conjunto Mao - Jogger con cierre,Z24,Rosa Vieja,XL,42015-Z24-XL,5,0,contado,low,color Rosa Vieja incierto
+42015,Conjunto Mao - Jogger con cierre,Z25,Beige,XS,42015-Z25-XS,5,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z25,Beige,S,42015-Z25-S,15,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z25,Beige,M,42015-Z25-M,15,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z25,Beige,L,42015-Z25-L,5,0,no(0),,
+42015,Conjunto Mao - Jogger con cierre,Z25,Beige,XL,42015-Z25-XL,5,0,no(0),,
+42019,Conjunto Cuello V Caballero - Bota recta,Z21,Negro,S,42019-Z21-S,10,2,contado,med,2XL tapado
+42019,Conjunto Cuello V Caballero - Bota recta,Z21,Negro,M,42019-Z21-M,15,12,contado,med,2XL tapado
+42019,Conjunto Cuello V Caballero - Bota recta,Z21,Negro,L,42019-Z21-L,10,5,contado,med,2XL tapado
+42019,Conjunto Cuello V Caballero - Bota recta,Z21,Negro,XL,42019-Z21-XL,10,9,contado,med,2XL tapado
+42019,Conjunto Cuello V Caballero - Bota recta,Z21,Negro,2XL,42019-Z21-2XL,5,0,tapado->0,med,2XL tapado
+42019,Conjunto Cuello V Caballero - Bota recta,Z22,Azul Rey,S,42019-Z22-S,10,11,contado,med,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z22,Azul Rey,M,42019-Z22-M,15,9,contado,med,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z22,Azul Rey,L,42019-Z22-L,10,6,contado,med,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z22,Azul Rey,XL,42019-Z22-XL,10,1,contado,med,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z22,Azul Rey,2XL,42019-Z22-2XL,5,0,contado,med,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z27,Gris,S,42019-Z27-S,10,10,contado,high,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z27,Gris,M,42019-Z27-M,15,12,contado,high,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z27,Gris,L,42019-Z27-L,10,8,contado,high,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z27,Gris,XL,42019-Z27-XL,10,5,contado,high,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z27,Gris,2XL,42019-Z27-2XL,5,2,contado,high,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z1,Marrón Claro,S,42019-Z1-S,10,10,contado,low,2XL tapado; suma visible 36 vs 47
+42019,Conjunto Cuello V Caballero - Bota recta,Z1,Marrón Claro,M,42019-Z1-M,15,13,contado,low,2XL tapado; suma visible 36 vs 47
+42019,Conjunto Cuello V Caballero - Bota recta,Z1,Marrón Claro,L,42019-Z1-L,10,10,contado,low,2XL tapado; suma visible 36 vs 47
+42019,Conjunto Cuello V Caballero - Bota recta,Z1,Marrón Claro,XL,42019-Z1-XL,10,3,contado,low,2XL tapado; suma visible 36 vs 47
+42019,Conjunto Cuello V Caballero - Bota recta,Z1,Marrón Claro,2XL,42019-Z1-2XL,5,0,tapado->0,low,2XL tapado; suma visible 36 vs 47
+42019,Conjunto Cuello V Caballero - Bota recta,Z2,Azul Celeste,S,42019-Z2-S,10,8,contado,high,
+42019,Conjunto Cuello V Caballero - Bota recta,Z2,Azul Celeste,M,42019-Z2-M,15,16,contado,high,
+42019,Conjunto Cuello V Caballero - Bota recta,Z2,Azul Celeste,L,42019-Z2-L,10,8,contado,high,
+42019,Conjunto Cuello V Caballero - Bota recta,Z2,Azul Celeste,XL,42019-Z2-XL,10,9,contado,high,
+42019,Conjunto Cuello V Caballero - Bota recta,Z2,Azul Celeste,2XL,42019-Z2-2XL,5,4,contado,high,
+42019,Conjunto Cuello V Caballero - Bota recta,Z10,Verde Petroleo,S,42019-Z10-S,10,8,contado,med,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z10,Verde Petroleo,M,42019-Z10-M,15,12,contado,med,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z10,Verde Petroleo,L,42019-Z10-L,10,7,contado,med,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z10,Verde Petroleo,XL,42019-Z10-XL,10,7,contado,med,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z10,Verde Petroleo,2XL,42019-Z10-2XL,5,1,contado,med,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z14,Blanco,S,42019-Z14-S,10,9,contado,low,2XL tapado; suma visible 38 vs 48
+42019,Conjunto Cuello V Caballero - Bota recta,Z14,Blanco,M,42019-Z14-M,15,14,contado,low,2XL tapado; suma visible 38 vs 48
+42019,Conjunto Cuello V Caballero - Bota recta,Z14,Blanco,L,42019-Z14-L,10,10,contado,low,2XL tapado; suma visible 38 vs 48
+42019,Conjunto Cuello V Caballero - Bota recta,Z14,Blanco,XL,42019-Z14-XL,10,5,contado,low,2XL tapado; suma visible 38 vs 48
+42019,Conjunto Cuello V Caballero - Bota recta,Z14,Blanco,2XL,42019-Z14-2XL,5,0,tapado->0,low,2XL tapado; suma visible 38 vs 48
+42019,Conjunto Cuello V Caballero - Bota recta,Z16,Verde Oliva,S,42019-Z16-S,10,13,contado,low,XL/2XL tapados
+42019,Conjunto Cuello V Caballero - Bota recta,Z16,Verde Oliva,M,42019-Z16-M,15,8,contado,low,XL/2XL tapados
+42019,Conjunto Cuello V Caballero - Bota recta,Z16,Verde Oliva,L,42019-Z16-L,10,4,contado,low,XL/2XL tapados
+42019,Conjunto Cuello V Caballero - Bota recta,Z16,Verde Oliva,XL,42019-Z16-XL,10,0,tapado->0,low,XL/2XL tapados
+42019,Conjunto Cuello V Caballero - Bota recta,Z16,Verde Oliva,2XL,42019-Z16-2XL,5,0,tapado->0,low,XL/2XL tapados
+42019,Conjunto Cuello V Caballero - Bota recta,Z25,Beige,S,42019-Z25-S,10,14,contado,med,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z25,Beige,M,42019-Z25-M,15,10,contado,med,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z25,Beige,L,42019-Z25-L,10,10,contado,med,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z25,Beige,XL,42019-Z25-XL,10,5,contado,med,columna sin fecha
+42019,Conjunto Cuello V Caballero - Bota recta,Z25,Beige,2XL,42019-Z25-2XL,5,0,contado,med,columna sin fecha
+42108,Conjunto Cuello Neru - Bota recta,Z34,Gris Plomo,XS,42108-Z34-XS,10,9,contado,low,
+42108,Conjunto Cuello Neru - Bota recta,Z34,Gris Plomo,S,42108-Z34-S,10,6,contado,low,
+42108,Conjunto Cuello Neru - Bota recta,Z34,Gris Plomo,M,42108-Z34-M,10,1,contado,low,
+42108,Conjunto Cuello Neru - Bota recta,Z34,Gris Plomo,L,42108-Z34-L,10,4,contado,low,
+42108,Conjunto Cuello Neru - Bota recta,Z34,Gris Plomo,XL,42108-Z34-XL,5,3,contado,low,
+42108,Conjunto Cuello Neru - Bota recta,Z34,Gris Plomo,2XL,42108-Z34-2XL,5,3,contado,low,
+42108,Conjunto Cuello Neru - Bota recta,Z17,Morado Vino,XS,42108-Z17-XS,10,0,no(0),,
+42108,Conjunto Cuello Neru - Bota recta,Z17,Morado Vino,S,42108-Z17-S,10,0,no(0),,
+42108,Conjunto Cuello Neru - Bota recta,Z17,Morado Vino,M,42108-Z17-M,10,0,no(0),,
+42108,Conjunto Cuello Neru - Bota recta,Z17,Morado Vino,L,42108-Z17-L,10,0,no(0),,
+42108,Conjunto Cuello Neru - Bota recta,Z17,Morado Vino,XL,42108-Z17-XL,5,0,no(0),,
+42108,Conjunto Cuello Neru - Bota recta,Z17,Morado Vino,2XL,42108-Z17-2XL,5,0,no(0),,
+42122,Conjunto Cuello V - Bota jogger,Z21,Negro,XS,42122-Z21-XS,10,0,no(0),,
+42122,Conjunto Cuello V - Bota jogger,Z21,Negro,S,42122-Z21-S,10,0,no(0),,
+42122,Conjunto Cuello V - Bota jogger,Z21,Negro,M,42122-Z21-M,10,0,no(0),,
+42122,Conjunto Cuello V - Bota jogger,Z21,Negro,L,42122-Z21-L,10,0,no(0),,
+42122,Conjunto Cuello V - Bota jogger,Z21,Negro,XL,42122-Z21-XL,5,0,no(0),,
+42122,Conjunto Cuello V - Bota jogger,Z21,Negro,2XL,42122-Z21-2XL,5,0,no(0),,
+42122,Conjunto Cuello V - Bota jogger,Z22,Azul Rey,XS,42122-Z22-XS,10,10,contado,med,2XL tapado
+42122,Conjunto Cuello V - Bota jogger,Z22,Azul Rey,S,42122-Z22-S,10,11,contado,med,2XL tapado
+42122,Conjunto Cuello V - Bota jogger,Z22,Azul Rey,M,42122-Z22-M,10,8,contado,med,2XL tapado
+42122,Conjunto Cuello V - Bota jogger,Z22,Azul Rey,L,42122-Z22-L,10,6,contado,med,2XL tapado
+42122,Conjunto Cuello V - Bota jogger,Z22,Azul Rey,XL,42122-Z22-XL,5,4,contado,med,2XL tapado
+42122,Conjunto Cuello V - Bota jogger,Z22,Azul Rey,2XL,42122-Z22-2XL,5,0,tapado->0,med,2XL tapado
+42122,Conjunto Cuello V - Bota jogger,Z40,Rojo,XS,42122-Z40-XS,10,0,no(0),,
+42122,Conjunto Cuello V - Bota jogger,Z40,Rojo,S,42122-Z40-S,10,0,no(0),,
+42122,Conjunto Cuello V - Bota jogger,Z40,Rojo,M,42122-Z40-M,10,0,no(0),,
+42122,Conjunto Cuello V - Bota jogger,Z40,Rojo,L,42122-Z40-L,10,0,no(0),,
+42122,Conjunto Cuello V - Bota jogger,Z40,Rojo,XL,42122-Z40-XL,5,0,no(0),,
+42122,Conjunto Cuello V - Bota jogger,Z40,Rojo,2XL,42122-Z40-2XL,5,0,no(0),,
+42122,Conjunto Cuello V - Bota jogger,Z35,Marrón Café,XS,42122-Z35-XS,10,8,contado,low,codigo leido 42102
+42122,Conjunto Cuello V - Bota jogger,Z35,Marrón Café,S,42122-Z35-S,10,6,contado,low,codigo leido 42102
+42122,Conjunto Cuello V - Bota jogger,Z35,Marrón Café,M,42122-Z35-M,10,8,contado,low,codigo leido 42102
+42122,Conjunto Cuello V - Bota jogger,Z35,Marrón Café,L,42122-Z35-L,10,7,contado,low,codigo leido 42102
+42122,Conjunto Cuello V - Bota jogger,Z35,Marrón Café,XL,42122-Z35-XL,5,5,contado,low,codigo leido 42102
+42122,Conjunto Cuello V - Bota jogger,Z35,Marrón Café,2XL,42122-Z35-2XL,5,4,contado,low,codigo leido 42102
+42168,Conjunto Cuello V - Bota recta,Z21,Negro,XS,42168-Z21-XS,15,10,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z21,Negro,S,42168-Z21-S,25,3,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z21,Negro,M,42168-Z21-M,25,6,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z21,Negro,L,42168-Z21-L,20,11,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z21,Negro,XL,42168-Z21-XL,15,2,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z22,Azul Rey,XS,42168-Z22-XS,15,9,contado,low,suma 51 vs 52
+42168,Conjunto Cuello V - Bota recta,Z22,Azul Rey,S,42168-Z22-S,25,18,contado,low,suma 51 vs 52
+42168,Conjunto Cuello V - Bota recta,Z22,Azul Rey,M,42168-Z22-M,25,7,contado,low,suma 51 vs 52
+42168,Conjunto Cuello V - Bota recta,Z22,Azul Rey,L,42168-Z22-L,20,9,contado,low,suma 51 vs 52
+42168,Conjunto Cuello V - Bota recta,Z22,Azul Rey,XL,42168-Z22-XL,15,3,contado,low,suma 51 vs 52
+42168,Conjunto Cuello V - Bota recta,Z40,Rojo,XS,42168-Z40-XS,10,11,contado,low,XL tapado; suma visible 25 vs 28
+42168,Conjunto Cuello V - Bota recta,Z40,Rojo,S,42168-Z40-S,10,6,contado,low,XL tapado; suma visible 25 vs 28
+42168,Conjunto Cuello V - Bota recta,Z40,Rojo,M,42168-Z40-M,10,3,contado,low,XL tapado; suma visible 25 vs 28
+42168,Conjunto Cuello V - Bota recta,Z40,Rojo,L,42168-Z40-L,10,3,contado,low,XL tapado; suma visible 25 vs 28
+42168,Conjunto Cuello V - Bota recta,Z40,Rojo,XL,42168-Z40-XL,10,0,tapado->0,low,XL tapado; suma visible 25 vs 28
+42168,Conjunto Cuello V - Bota recta,Z27,Gris,XS,42168-Z27-XS,5,0,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z27,Gris,S,42168-Z27-S,15,14,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z27,Gris,M,42168-Z27-M,15,14,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z27,Gris,L,42168-Z27-L,10,9,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z27,Gris,XL,42168-Z27-XL,5,5,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z1,Marrón Claro,XS,42168-Z1-XS,5,0,tapado->0,low,planilla no legible (Marron Z1)
+42168,Conjunto Cuello V - Bota recta,Z1,Marrón Claro,S,42168-Z1-S,15,0,tapado->0,low,planilla no legible (Marron Z1)
+42168,Conjunto Cuello V - Bota recta,Z1,Marrón Claro,M,42168-Z1-M,15,0,tapado->0,low,planilla no legible (Marron Z1)
+42168,Conjunto Cuello V - Bota recta,Z1,Marrón Claro,L,42168-Z1-L,9,0,tapado->0,low,planilla no legible (Marron Z1)
+42168,Conjunto Cuello V - Bota recta,Z1,Marrón Claro,XL,42168-Z1-XL,5,0,tapado->0,low,planilla no legible (Marron Z1)
+42168,Conjunto Cuello V - Bota recta,Z2,Azul Celeste,XS,42168-Z2-XS,5,0,no(0),,
+42168,Conjunto Cuello V - Bota recta,Z2,Azul Celeste,S,42168-Z2-S,15,0,no(0),,
+42168,Conjunto Cuello V - Bota recta,Z2,Azul Celeste,M,42168-Z2-M,15,0,no(0),,
+42168,Conjunto Cuello V - Bota recta,Z2,Azul Celeste,L,42168-Z2-L,10,0,no(0),,
+42168,Conjunto Cuello V - Bota recta,Z2,Azul Celeste,XL,42168-Z2-XL,5,0,no(0),,
+42168,Conjunto Cuello V - Bota recta,Z3,Fucsia,XS,42168-Z3-XS,5,2,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z3,Fucsia,S,42168-Z3-S,15,6,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z3,Fucsia,M,42168-Z3-M,15,10,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z3,Fucsia,L,42168-Z3-L,10,5,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z3,Fucsia,XL,42168-Z3-XL,5,0,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z4,Coral,XS,42168-Z4-XS,5,4,contado,high,
+42168,Conjunto Cuello V - Bota recta,Z4,Coral,S,42168-Z4-S,15,13,contado,high,
+42168,Conjunto Cuello V - Bota recta,Z4,Coral,M,42168-Z4-M,15,10,contado,high,
+42168,Conjunto Cuello V - Bota recta,Z4,Coral,L,42168-Z4-L,10,6,contado,high,
+42168,Conjunto Cuello V - Bota recta,Z4,Coral,XL,42168-Z4-XL,5,3,contado,high,
+42168,Conjunto Cuello V - Bota recta,Z9,Azul Marino,XS,42168-Z9-XS,15,3,contado,low,suma 41 vs 42
+42168,Conjunto Cuello V - Bota recta,Z9,Azul Marino,S,42168-Z9-S,25,4,contado,low,suma 41 vs 42
+42168,Conjunto Cuello V - Bota recta,Z9,Azul Marino,M,42168-Z9-M,25,9,contado,low,suma 41 vs 42
+42168,Conjunto Cuello V - Bota recta,Z9,Azul Marino,L,42168-Z9-L,20,14,contado,low,suma 41 vs 42
+42168,Conjunto Cuello V - Bota recta,Z9,Azul Marino,XL,42168-Z9-XL,15,6,contado,low,suma 41 vs 42
+42168,Conjunto Cuello V - Bota recta,Z11,Pistacho,XS,42168-Z11-XS,5,0,contado,low,rotada
+42168,Conjunto Cuello V - Bota recta,Z11,Pistacho,S,42168-Z11-S,15,4,contado,low,rotada
+42168,Conjunto Cuello V - Bota recta,Z11,Pistacho,M,42168-Z11-M,15,9,contado,low,rotada
+42168,Conjunto Cuello V - Bota recta,Z11,Pistacho,L,42168-Z11-L,10,6,contado,low,rotada
+42168,Conjunto Cuello V - Bota recta,Z11,Pistacho,XL,42168-Z11-XL,5,1,contado,low,rotada
+42168,Conjunto Cuello V - Bota recta,Z14,Blanco,XS,42168-Z14-XS,5,4,contado,low,atribucion de columna dudosa
+42168,Conjunto Cuello V - Bota recta,Z14,Blanco,S,42168-Z14-S,15,12,contado,low,atribucion de columna dudosa
+42168,Conjunto Cuello V - Bota recta,Z14,Blanco,M,42168-Z14-M,15,11,contado,low,atribucion de columna dudosa
+42168,Conjunto Cuello V - Bota recta,Z14,Blanco,L,42168-Z14-L,10,7,contado,low,atribucion de columna dudosa
+42168,Conjunto Cuello V - Bota recta,Z14,Blanco,XL,42168-Z14-XL,5,4,contado,low,atribucion de columna dudosa
+42168,Conjunto Cuello V - Bota recta,Z15,Lila,XS,42168-Z15-XS,5,0,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z15,Lila,S,42168-Z15-S,15,8,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z15,Lila,M,42168-Z15-M,15,10,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z15,Lila,L,42168-Z15-L,10,6,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z15,Lila,XL,42168-Z15-XL,5,1,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z16,Verde Oliva,XS,42168-Z16-XS,5,5,contado,high,
+42168,Conjunto Cuello V - Bota recta,Z16,Verde Oliva,S,42168-Z16-S,15,9,contado,high,
+42168,Conjunto Cuello V - Bota recta,Z16,Verde Oliva,M,42168-Z16-M,15,13,contado,high,
+42168,Conjunto Cuello V - Bota recta,Z16,Verde Oliva,L,42168-Z16-L,10,5,contado,high,
+42168,Conjunto Cuello V - Bota recta,Z16,Verde Oliva,XL,42168-Z16-XL,5,4,contado,high,
+42168,Conjunto Cuello V - Bota recta,Z17,Morado Vino,XS,42168-Z17-XS,5,0,contado,low,2XL tapado; suma visible 16 vs 21
+42168,Conjunto Cuello V - Bota recta,Z17,Morado Vino,S,42168-Z17-S,15,4,contado,low,2XL tapado; suma visible 16 vs 21
+42168,Conjunto Cuello V - Bota recta,Z17,Morado Vino,M,42168-Z17-M,15,7,contado,low,2XL tapado; suma visible 16 vs 21
+42168,Conjunto Cuello V - Bota recta,Z17,Morado Vino,L,42168-Z17-L,10,5,contado,low,2XL tapado; suma visible 16 vs 21
+42168,Conjunto Cuello V - Bota recta,Z17,Morado Vino,XL,42168-Z17-XL,5,0,contado,low,2XL tapado; suma visible 16 vs 21
+42168,Conjunto Cuello V - Bota recta,Z19,Verde Navidad,XS,42168-Z19-XS,5,0,tapado->0,low,Verde Navidad: columna en blanco
+42168,Conjunto Cuello V - Bota recta,Z19,Verde Navidad,S,42168-Z19-S,15,0,tapado->0,low,Verde Navidad: columna en blanco
+42168,Conjunto Cuello V - Bota recta,Z19,Verde Navidad,M,42168-Z19-M,15,0,tapado->0,low,Verde Navidad: columna en blanco
+42168,Conjunto Cuello V - Bota recta,Z19,Verde Navidad,L,42168-Z19-L,10,0,tapado->0,low,Verde Navidad: columna en blanco
+42168,Conjunto Cuello V - Bota recta,Z19,Verde Navidad,XL,42168-Z19-XL,5,0,tapado->0,low,Verde Navidad: columna en blanco
+42168,Conjunto Cuello V - Bota recta,Z24,Rosa Vieja,XS,42168-Z24-XS,5,0,no(0),,
+42168,Conjunto Cuello V - Bota recta,Z24,Rosa Vieja,S,42168-Z24-S,15,0,no(0),,
+42168,Conjunto Cuello V - Bota recta,Z24,Rosa Vieja,M,42168-Z24-M,15,0,no(0),,
+42168,Conjunto Cuello V - Bota recta,Z24,Rosa Vieja,L,42168-Z24-L,10,0,no(0),,
+42168,Conjunto Cuello V - Bota recta,Z24,Rosa Vieja,XL,42168-Z24-XL,5,0,no(0),,
+42168,Conjunto Cuello V - Bota recta,Z25,Beige,XS,42168-Z25-XS,5,1,contado,low,rotada
+42168,Conjunto Cuello V - Bota recta,Z25,Beige,S,42168-Z25-S,15,9,contado,low,rotada
+42168,Conjunto Cuello V - Bota recta,Z25,Beige,M,42168-Z25-M,15,11,contado,low,rotada
+42168,Conjunto Cuello V - Bota recta,Z25,Beige,L,42168-Z25-L,10,10,contado,low,rotada
+42168,Conjunto Cuello V - Bota recta,Z25,Beige,XL,42168-Z25-XL,5,4,contado,low,rotada
+42168,Conjunto Cuello V - Bota recta,Z26,Azul Rómulo,XS,42168-Z26-XS,15,12,contado,med,vista directa
+42168,Conjunto Cuello V - Bota recta,Z26,Azul Rómulo,S,42168-Z26-S,25,21,contado,med,vista directa
+42168,Conjunto Cuello V - Bota recta,Z26,Azul Rómulo,M,42168-Z26-M,25,20,contado,med,vista directa
+42168,Conjunto Cuello V - Bota recta,Z26,Azul Rómulo,L,42168-Z26-L,20,17,contado,med,vista directa
+42168,Conjunto Cuello V - Bota recta,Z26,Azul Rómulo,XL,42168-Z26-XL,15,8,contado,med,vista directa
+42168,Conjunto Cuello V - Bota recta,Z29,Verde Pizarra,XS,42168-Z29-XS,5,2,contado,low,rotada
+42168,Conjunto Cuello V - Bota recta,Z29,Verde Pizarra,S,42168-Z29-S,15,9,contado,low,rotada
+42168,Conjunto Cuello V - Bota recta,Z29,Verde Pizarra,M,42168-Z29-M,15,10,contado,low,rotada
+42168,Conjunto Cuello V - Bota recta,Z29,Verde Pizarra,L,42168-Z29-L,10,6,contado,low,rotada
+42168,Conjunto Cuello V - Bota recta,Z29,Verde Pizarra,XL,42168-Z29-XL,5,2,contado,low,rotada
+42168,Conjunto Cuello V - Bota recta,Z8,Vinotinto,XS,42168-Z8-XS,10,7,contado,high,
+42168,Conjunto Cuello V - Bota recta,Z8,Vinotinto,S,42168-Z8-S,10,7,contado,high,
+42168,Conjunto Cuello V - Bota recta,Z8,Vinotinto,M,42168-Z8-M,10,7,contado,high,
+42168,Conjunto Cuello V - Bota recta,Z8,Vinotinto,L,42168-Z8-L,10,5,contado,high,
+42168,Conjunto Cuello V - Bota recta,Z8,Vinotinto,XL,42168-Z8-XL,10,4,contado,high,
+42168,Conjunto Cuello V - Bota recta,Z35,Marrón Café,XS,42168-Z35-XS,10,8,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z35,Marrón Café,S,42168-Z35-S,10,4,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z35,Marrón Café,M,42168-Z35-M,10,2,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z35,Marrón Café,L,42168-Z35-L,10,3,contado,med,
+42168,Conjunto Cuello V - Bota recta,Z35,Marrón Café,XL,42168-Z35-XL,10,5,contado,med,
+42187,Conjunto Mao con cierre - Jogger,A,Degradado A (Magenta-Cian),XS,42187-A-XS,5,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,A,Degradado A (Magenta-Cian),S,42187-A-S,15,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,A,Degradado A (Magenta-Cian),M,42187-A-M,15,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,A,Degradado A (Magenta-Cian),L,42187-A-L,10,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,A,Degradado A (Magenta-Cian),XL,42187-A-XL,5,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,A,Degradado A (Magenta-Cian),2XL,42187-A-2XL,2,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,B,Degradado B (Azul),XS,42187-B-XS,5,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,B,Degradado B (Azul),S,42187-B-S,15,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,B,Degradado B (Azul),M,42187-B-M,15,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,B,Degradado B (Azul),L,42187-B-L,10,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,B,Degradado B (Azul),XL,42187-B-XL,5,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,B,Degradado B (Azul),2XL,42187-B-2XL,2,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,C,Degradado C (Purpura-Fucsia),XS,42187-C-XS,5,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,C,Degradado C (Purpura-Fucsia),S,42187-C-S,15,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,C,Degradado C (Purpura-Fucsia),M,42187-C-M,15,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,C,Degradado C (Purpura-Fucsia),L,42187-C-L,10,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,C,Degradado C (Purpura-Fucsia),XL,42187-C-XL,5,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,C,Degradado C (Purpura-Fucsia),2XL,42187-C-2XL,2,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,D,Degradado D (Vino-Negro),XS,42187-D-XS,5,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,D,Degradado D (Vino-Negro),S,42187-D-S,15,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,D,Degradado D (Vino-Negro),M,42187-D-M,15,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,D,Degradado D (Vino-Negro),L,42187-D-L,10,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,D,Degradado D (Vino-Negro),XL,42187-D-XL,5,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,D,Degradado D (Vino-Negro),2XL,42187-D-2XL,2,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,E,Degradado E (Verde-Teal),XS,42187-E-XS,5,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,E,Degradado E (Verde-Teal),S,42187-E-S,15,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,E,Degradado E (Verde-Teal),M,42187-E-M,15,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,E,Degradado E (Verde-Teal),L,42187-E-L,10,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,E,Degradado E (Verde-Teal),XL,42187-E-XL,5,0,no(0),,
+42187,Conjunto Mao con cierre - Jogger,E,Degradado E (Verde-Teal),2XL,42187-E-2XL,2,0,no(0),,
+42342,Conjunto Cuello V - Bota ancha,Z21,Negro,XS,42342-Z21-XS,15,10,contado,low,rotada
+42342,Conjunto Cuello V - Bota ancha,Z21,Negro,S,42342-Z21-S,10,1,contado,low,rotada
+42342,Conjunto Cuello V - Bota ancha,Z21,Negro,M,42342-Z21-M,10,0,contado,low,rotada
+42342,Conjunto Cuello V - Bota ancha,Z21,Negro,L,42342-Z21-L,10,5,contado,low,rotada
+42342,Conjunto Cuello V - Bota ancha,Z21,Negro,XL,42342-Z21-XL,5,3,contado,low,rotada
+42342,Conjunto Cuello V - Bota ancha,Z7,Azul Bebé,XS,42342-Z7-XS,15,13,contado,low,Azul Bebe
+42342,Conjunto Cuello V - Bota ancha,Z7,Azul Bebé,S,42342-Z7-S,10,2,contado,low,Azul Bebe
+42342,Conjunto Cuello V - Bota ancha,Z7,Azul Bebé,M,42342-Z7-M,10,6,contado,low,Azul Bebe
+42342,Conjunto Cuello V - Bota ancha,Z7,Azul Bebé,L,42342-Z7-L,10,3,contado,low,Azul Bebe
+42342,Conjunto Cuello V - Bota ancha,Z7,Azul Bebé,XL,42342-Z7-XL,5,0,contado,low,Azul Bebe
+42342,Conjunto Cuello V - Bota ancha,Z20,Morado,XS,42342-Z20-XS,15,12,contado,low,Morado
+42342,Conjunto Cuello V - Bota ancha,Z20,Morado,S,42342-Z20-S,10,5,contado,low,Morado
+42342,Conjunto Cuello V - Bota ancha,Z20,Morado,M,42342-Z20-M,10,5,contado,low,Morado
+42342,Conjunto Cuello V - Bota ancha,Z20,Morado,L,42342-Z20-L,10,3,contado,low,Morado
+42342,Conjunto Cuello V - Bota ancha,Z20,Morado,XL,42342-Z20-XL,5,0,contado,low,Morado
+42342,Conjunto Cuello V - Bota ancha,Z31,Verde Agua,XS,42342-Z31-XS,15,0,no(0),,
+42342,Conjunto Cuello V - Bota ancha,Z31,Verde Agua,S,42342-Z31-S,10,0,no(0),,
+42342,Conjunto Cuello V - Bota ancha,Z31,Verde Agua,M,42342-Z31-M,10,0,no(0),,
+42342,Conjunto Cuello V - Bota ancha,Z31,Verde Agua,L,42342-Z31-L,10,0,no(0),,
+42342,Conjunto Cuello V - Bota ancha,Z31,Verde Agua,XL,42342-Z31-XL,5,0,no(0),,
+42342,Conjunto Cuello V - Bota ancha,Z32,Amarillo,XS,42342-Z32-XS,15,13,contado,low,Amarillo
+42342,Conjunto Cuello V - Bota ancha,Z32,Amarillo,S,42342-Z32-S,10,7,contado,low,Amarillo
+42342,Conjunto Cuello V - Bota ancha,Z32,Amarillo,M,42342-Z32-M,10,9,contado,low,Amarillo
+42342,Conjunto Cuello V - Bota ancha,Z32,Amarillo,L,42342-Z32-L,10,5,contado,low,Amarillo
+42342,Conjunto Cuello V - Bota ancha,Z32,Amarillo,XL,42342-Z32-XL,5,0,contado,low,Amarillo

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getShipmentsData, createShipmentAction, updateShipmentStatusAction, getSalesAndQuotesData, getConfigData, addCarrier } from "@/lib/db/actions";
+import { getShipmentsData, createShipmentAction, updateShipmentStatusAction, getSalesAndQuotesData, getConfigData, addCarrier, deleteShipmentAction } from "@/lib/db/actions";
 import { formatUSD } from "@/lib/utils";
 import { SearchCreateSelect, type SearchCreateOption } from "@/components/ui/SearchCreateSelect";
+import { useUser } from "../UserContext";
 
 function estadoBadge(e: string): string {
   if (e === "Entregado") return "badge badge-success";
@@ -13,6 +14,7 @@ function estadoBadge(e: string): string {
 }
 
 export default function DespachosPage() {
+  const user = useUser();
   const [loading, setLoading] = useState(true);
   const [shipmentsList, setShipmentsList] = useState<any[]>([]);
   const [salesList, setSalesList] = useState<any[]>([]);
@@ -126,6 +128,17 @@ export default function DespachosPage() {
     }
   }
 
+  async function handleDeleteShipment(s: any) {
+    if (!window.confirm("¿Eliminar este despacho?")) return;
+    const res = await deleteShipmentAction(s.id);
+    if (res.success) {
+      loadData();
+      setSuccessMsg("Despacho eliminado correctamente.");
+    } else {
+      setErrorMsg(res.error || "Error al eliminar despacho");
+    }
+  }
+
   async function handleStatusTransition(shipmentId: number, nextStatus: "pendiente" | "despachado" | "entregado") {
     const res = await updateShipmentStatusAction(shipmentId, nextStatus);
     if (res.success) {
@@ -193,6 +206,17 @@ export default function DespachosPage() {
                 {s.rawStatus === "despachado" && (
                   <button className="btn btn-sm btn-secondary" style={{ padding: "4px 8px", fontSize: 10 }} onClick={() => handleStatusTransition(s.id, "entregado")}>Entregar</button>
                 )}
+                {user?.role === "admin" && (
+                  <button
+                    type="button"
+                    className="icon-btn icon-btn-danger"
+                    title="Eliminar"
+                    aria-label="Eliminar despacho"
+                    onClick={() => handleDeleteShipment(s)}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" /></svg>
+                  </button>
+                )}
               </span>
             </div>
           ))
@@ -209,7 +233,7 @@ export default function DespachosPage() {
               <button className="btn-close" onClick={() => setShowModal(false)}>×</button>
             </div>
             <form onSubmit={handleSubmit}>
-              {errorMsg && <div className="alert alert-danger" style={{ marginBottom: 12 }}>{errorMsg}</div>}
+
               
               <div className="grid-2" style={{ gap: 12 }}>
                 <div className="form-group">
@@ -284,11 +308,14 @@ export default function DespachosPage() {
                 />
               </div>
 
-              <div className="modal-footer" style={{ marginTop: 18 }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>
-                <button type="submit" className="btn btn-primary" disabled={submitting}>
-                  {submitting ? "Registrando..." : "Registrar"}
-                </button>
+              <div className="modal-footer-sticky">
+                {errorMsg && <div className="alert alert-danger" style={{ marginBottom: 0 }}>{errorMsg}</div>}
+                <div className="sales-form-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>
+                  <button type="submit" className="btn btn-primary" disabled={submitting}>
+                    {submitting ? "Registrando..." : "Registrar"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

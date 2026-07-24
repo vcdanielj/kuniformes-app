@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getCustomersDetailList, createCustomerAction, updateCustomerAction, getConfigData } from "@/lib/db/actions";
+import { getCustomersDetailList, createCustomerAction, updateCustomerAction, deleteCustomerAction, getConfigData } from "@/lib/db/actions";
 import { formatUSD, getInitials, getAvatarColor } from "@/lib/utils";
+import { useUser } from "../UserContext";
 
 const plusIcon = (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
@@ -18,10 +19,12 @@ const editIcon = (
 );
 
 export default function ClientesPage() {
+  const user = useUser();
   const [loading, setLoading] = useState(true);
   const [customers, setCustomers] = useState<any[]>([]);
   const [colorMap, setColorMap] = useState<Record<string, { name: string; hex: string }>>({});
-  const [selIdx, setSelIdx] = useState(0);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -38,20 +41,37 @@ export default function ClientesPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  const filteredCustomers = customers.filter((customer) => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return true;
+    return [customer.name, customer.phone, customer.notes, customer.colorFav, customer.talla]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query));
+  });
 
   async function loadData() {
     try {
       setLoading(true);
-      const data = await getCustomersDetailList();
+      const [data, config] = await Promise.all([
+        getCustomersDetailList(),
+        getConfigData(),
+      ]);
       setCustomers(data);
-
-      const config = await getConfigData();
+      setSelectedCustomerId((current) => {
+        if (current && data.some((customer: any) => customer.id === current)) {
+          return current;
+        }
+        return data[0]?.id ?? null;
+      });
       const cmap: Record<string, { name: string; hex: string }> = {};
       config.colors.forEach((c: any) => {
         cmap[c.code] = { name: c.name, hex: c.hex };
       });
       setColorMap(cmap);
       setErrorMsg("");
+      setSuccessMsg("");
     } catch (e) {
       console.error(e);
       setErrorMsg("Error al cargar clientes.");
@@ -64,7 +84,18 @@ export default function ClientesPage() {
     loadData();
   }, []);
 
-  const sel = customers[selIdx];
+  useEffect(() => {
+    if (filteredCustomers.length === 0) return;
+    if (!filteredCustomers.some((customer) => customer.id === selectedCustomerId)) {
+      setSelectedCustomerId(filteredCustomers[0].id);
+    }
+  }, [selectedCustomerId, filteredCustomers]);
+
+  const sel =
+    filteredCustomers.find((customer) => customer.id === selectedCustomerId) ||
+    customers.find((customer) => customer.id === selectedCustomerId) ||
+    filteredCustomers[0] ||
+    customers[0];
 
   async function handleAddCustomer(e: React.FormEvent) {
     e.preventDefault();
@@ -77,6 +108,7 @@ export default function ClientesPage() {
       setName("");
       setPhone("");
       setNotes("");
+      setSuccessMsg("Cliente creado correctamente.");
       loadData();
     } else {
       setErrorMsg(res.error || "Error al agregar cliente");
@@ -91,6 +123,7 @@ export default function ClientesPage() {
     setSubmitting(false);
     if (res.success) {
       setShowEditModal(false);
+      setSuccessMsg("Cliente actualizado correctamente.");
       loadData();
     } else {
       setErrorMsg(res.error || "Error al actualizar cliente");
@@ -103,6 +136,22 @@ export default function ClientesPage() {
     setEditPhone(sel.phone === "Sin registrar" ? "" : sel.phone);
     setEditNotes(sel.notes);
     setShowEditModal(true);
+  }
+
+  async function handleDeleteCustomer() {
+    if (!sel) return;
+    if (!window.confirm(`¿Eliminar el cliente ${sel.name}? Esta acción no se puede deshacer.`)) return;
+    setSubmitting(true);
+    const res = await deleteCustomerAction(sel.id);
+    setSubmitting(false);
+    if (res.success) {
+      setSelectedCustomerId(null);
+      setSuccessMsg("Cliente eliminado correctamente.");
+      setErrorMsg("");
+      loadData();
+    } else {
+      setErrorMsg(res.error || "Error al eliminar cliente");
+    }
   }
 
   if (loading) {
@@ -119,12 +168,40 @@ export default function ClientesPage() {
       <div className="table-container">
         <div className="table-header-row">
           <h3>Clientes</h3>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowAddModal(true)}>{plusIcon} Nuevo cliente</button>
+          <button className="btn btn-primary btn-sm" onClick={() => { setErrorMsg(""); setShowAddModal(true); }}>{plusIcon} Nuevo cliente</button>
         </div>
-        
+
+        <div className="page-toolbar" style={{ padding: "16px 22px 0" }}>
+          <div className="search-bar" style={{ flex: 1, minWidth: 200 }}>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar por nombre, teléfono, talla o nota"
+            />
+          </div>
+          {searchTerm ? (
+            <button className="btn btn-secondary btn-sm" onClick={() => setSearchTerm("")}>
+              Limpiar búsqueda
+            </button>
+          ) : null}
+        </div>
+
+        {successMsg ? (
+          <div style={{ padding: "14px 22px 0" }}>
+            <div className="alert-banner alert-banner-success" style={{ marginBottom: 0 }}>
+              <p>{successMsg}</p>
+            </div>
+          </div>
+        ) : null}
+
         {customers.length === 0 ? (
           <div className="empty-state-card" style={{ margin: 22 }}>
             <strong>Sin clientes registrados.</strong> Crea el primer cliente para empezar a construir historial y preferencias.
+          </div>
+        ) : filteredCustomers.length === 0 ? (
+          <div className="empty-state-card" style={{ margin: 22 }}>
+            <strong>Sin coincidencias.</strong> Ajusta el criterio o limpia la búsqueda para ver todo el CRM.
           </div>
         ) : (
           <div className="responsive-table-scroll">
@@ -146,8 +223,8 @@ export default function ClientesPage() {
               <span>Talla Habitual</span>
               <span>Color fav.</span>
             </div>
-            {customers.map((c, i) => {
-              const isActive = i === selIdx;
+            {filteredCustomers.map((c) => {
+              const isActive = c.id === sel?.id;
               return (
                 <div
                   key={c.id}
@@ -161,7 +238,7 @@ export default function ClientesPage() {
                     background: isActive ? "var(--bg-hover-row)" : undefined,
                     borderLeft: isActive ? "3px solid var(--text-primary)" : "3px solid transparent",
                   }}
-                  onClick={() => setSelIdx(i)}
+                  onClick={() => setSelectedCustomerId(c.id)}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div className="avatar avatar-md" style={{ background: getAvatarColor(c.name) }}>
@@ -205,6 +282,17 @@ export default function ClientesPage() {
             <button className="btn btn-secondary btn-icon" onClick={openEdit} title="Editar cliente" style={{ padding: "6px" }}>
               {editIcon}
             </button>
+            {user?.role === "admin" && (
+              <button
+                className="btn btn-secondary btn-xs"
+                onClick={handleDeleteCustomer}
+                disabled={submitting}
+                title="Eliminar cliente"
+                style={{ color: "var(--danger)" }}
+              >
+                Eliminar
+              </button>
+            )}
           </div>
 
           {/* Notes if any */}
@@ -225,6 +313,13 @@ export default function ClientesPage() {
               <div style={{ fontSize: "var(--text-2xl)", fontWeight: 800, marginTop: 3 }}>{sel.pedidos}</div>
             </div>
           </div>
+
+          {sel.creditBalance > 0 && (
+            <div style={{ background: "var(--success-bg)", border: "1px solid var(--success)", borderRadius: 10, padding: "10px 14px", marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: "var(--text-md)", color: "var(--success)", fontWeight: 600 }}>Saldo a favor</span>
+              <span style={{ fontSize: "var(--text-xl)", fontWeight: 800, color: "var(--success)" }}>{formatUSD(sel.creditBalance)}</span>
+            </div>
+          )}
 
           {/* Preferences */}
           <div className="section-label" style={{ marginBottom: 10 }}>Preferencias</div>

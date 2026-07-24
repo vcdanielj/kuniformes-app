@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, useEffect, type ChangeEvent, type ComponentProps } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   getInventoryModels,
   getModelDetail,
   adjustSkuStock,
   createModel,
+  updateModelAction,
+  deleteModelAction,
   getConfigData,
   addCategory,
   upsertModelColorImageAction,
@@ -14,6 +17,7 @@ import {
 import { formatUSD } from "@/lib/utils";
 import { SETTINGS_KEYS, SYSTEM_DEFAULTS } from "@/lib/app-config";
 import { SearchCreateSelect, type SearchCreateOption } from "@/components/ui/SearchCreateSelect";
+import { useUser } from "../UserContext";
 
 /* ─── Filter categories ─── */
 type FilterType = "all" | "uniformes" | "gorros" | "accesorios";
@@ -96,7 +100,6 @@ function stockCellStyle(v: number, threshold = 5) {
 }
 
 const COLOR_IMAGE_ACCEPT = "image/png,image/jpeg,image/webp";
-const COLOR_IMAGE_MAX_BYTES = 1_500_000;
 type FormSubmitEvent = Parameters<NonNullable<ComponentProps<"form">["onSubmit"]>>[0];
 
 function readFileAsDataUrl(file: File) {
@@ -105,6 +108,40 @@ function readFileAsDataUrl(file: File) {
     reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
     reader.onerror = () => reject(new Error("No se pudo leer la imagen seleccionada."));
     reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Downscale + re-encode the image in the browser before uploading. This keeps
+ * the Server Action payload small (well under the 1MB default limit) and shrinks
+ * what is stored in D1. Returns a JPEG data URL.
+ */
+async function compressImageToDataUrl(file: File, maxDim = 1280, quality = 0.82): Promise<string> {
+  const sourceDataUrl = await readFileAsDataUrl(file);
+  return new Promise<string>((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (!width || !height) return resolve(sourceDataUrl);
+      const scale = Math.min(1, maxDim / Math.max(width, height));
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return resolve(sourceDataUrl);
+      ctx.fillStyle = "#ffffff"; // flatten any transparency for JPEG
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      try {
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      } catch {
+        resolve(sourceDataUrl);
+      }
+    };
+    img.onerror = () => resolve(sourceDataUrl);
+    img.src = sourceDataUrl;
   });
 }
 
@@ -167,6 +204,9 @@ function ColorImagePreview({
 }
 
 export default function InventarioPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const user = useUser();
   const [filter, setFilter] = useState<FilterType>("all");
   const [loading, setLoading] = useState(true);
   const [modelsList, setModelsList] = useState<any[]>([]);
@@ -191,14 +231,27 @@ export default function InventarioPage() {
   const [newModelPrice, setNewModelPrice] = useState("28");
   const [newModelCost, setNewModelCost] = useState("16");
   const [newModelType, setNewModelType] = useState<"con_tallas" | "sin_tallas">("con_tallas");
+  const [newModelGender, setNewModelGender] = useState<"dama" | "caballero" | "unisex">("dama");
+  const [newModelThreshold, setNewModelThreshold] = useState("3");
   const [selectedColorIds, setSelectedColorIds] = useState<number[]>([]);
   const [selectedSizeIds, setSelectedSizeIds] = useState<number[]>([]);
+  const [colorSearch, setColorSearch] = useState("");
 
   // Adjust Stock Form State
   const [adjustSkuId, setAdjustSkuId] = useState<number | null>(null);
   const [adjustQty, setAdjustQty] = useState("5");
   const [adjustType, setAdjustType] = useState<"sum" | "sub">("sum");
   const [adjustReason, setAdjustReason] = useState("Entrada de importación");
+
+  // Edit Model Form State
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editComp, setEditComp] = useState("");
+  const [editPrice, setEditPrice] = useState("");
+  const [editCost, setEditCost] = useState("");
+  const [editGender, setEditGender] = useState<"dama" | "caballero" | "unisex">("dama");
+  const [editThreshold, setEditThreshold] = useState("3");
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -212,9 +265,11 @@ export default function InventarioPage() {
   async function loadModels() {
     try {
       setLoading(true);
-      const data = await getInventoryModels();
+      const [data, config] = await Promise.all([
+        getInventoryModels(),
+        getConfigData(),
+      ]);
       setModelsList(data);
-      const config = await getConfigData();
       setColorsDb(config.colors);
       setSizesDb(config.sizes);
       setCategoriesDb(config.categories.filter((category: any) => category.type === "product"));
@@ -229,6 +284,13 @@ export default function InventarioPage() {
   useEffect(() => {
     loadModels();
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get("newModel") !== "1") return;
+    setErrorMsg("");
+    setShowAddModal(true);
+    router.replace("/inventario");
+  }, [router, searchParams]);
 
   const productCategoryOptions: SearchCreateOption[] = categoriesDb.map((category: any) => ({
     value: category.name,
@@ -285,6 +347,7 @@ export default function InventarioPage() {
   const detailColors = modelDetail?.colors || [];
   const detailSizes = modelDetail?.sizes || [];
   const detailSkus = modelDetail?.skus || [];
+  const detailThreshold = detailModel?.lowStockThreshold ?? threshold;
 
   function getSkuStock(colorId: number, sizeId: number | null): number {
     const s = detailSkus.find((x: any) => x.colorId === colorId && x.sizeId === sizeId);
@@ -292,7 +355,22 @@ export default function InventarioPage() {
   }
 
   const modelTotalStockVal = detailSkus.reduce((sum: number, x: any) => sum + x.stock, 0);
-  const lowSkuCount = detailSkus.filter((x: any) => x.stock <= threshold).length;
+  const lowSkuCount = detailSkus.filter((x: any) => x.stock <= detailThreshold).length;
+
+  // Searchable options for the adjust-stock picker — typing filters by code,
+  // color or size instead of scrolling a long native <select> (relevant for
+  // models with many color/size combinations).
+  const skuOptions: SearchCreateOption[] = detailSkus.map((sku: any) => {
+    const color = detailColors.find((c: any) => c.id === sku.colorId);
+    const size = sku.sizeId ? detailSizes.find((s: any) => s.id === sku.sizeId) : null;
+    const descriptor = [color?.name, size?.name].filter(Boolean).join(" · ");
+    return {
+      value: String(sku.id),
+      label: sku.compositeCode,
+      meta: `${descriptor ? descriptor + " · " : ""}Stock actual: ${sku.stock}`,
+      keywords: [sku.compositeCode, color?.name, color?.code, size?.name].filter(Boolean) as string[],
+    };
+  });
 
   const filtered = filterModelsList(modelsList, filter);
 
@@ -319,6 +397,8 @@ export default function InventarioPage() {
       basePrice: parseFloat(newModelPrice),
       avgCost: parseFloat(newModelCost),
       type: newModelType,
+      gender: newModelGender,
+      lowStockThreshold: Number.parseInt(newModelThreshold, 10),
       colorIds: selectedColorIds,
       sizeIds: selectedSizeIds,
     });
@@ -330,11 +410,73 @@ export default function InventarioPage() {
       setNewModelId("");
       setNewModelName("");
       setNewModelComp("");
+      setNewModelThreshold("3");
       setSelectedColorIds([]);
       setSelectedSizeIds([]);
+      setColorSearch("");
       loadModels();
     } else {
       setErrorMsg(res.error || "Error al crear modelo");
+    }
+  }
+
+  function openEditModel() {
+    if (!detailModel) return;
+    setEditName(detailModel.name);
+    setEditCategory(detailModel.category || "");
+    setEditComp(detailModel.composition || "");
+    setEditPrice(String(detailModel.basePrice ?? ""));
+    setEditCost(String(detailModel.avgCost ?? ""));
+    setEditGender(detailModel.gender || "dama");
+    setEditThreshold(String(detailModel.lowStockThreshold ?? 3));
+    setErrorMsg("");
+    setShowEditModal(true);
+  }
+
+  async function handleUpdateModel(e: FormSubmitEvent) {
+    e.preventDefault();
+    if (!detailModel || !editName.trim() || !editCategory.trim()) return;
+    const price = parseFloat(editPrice);
+    if (!Number.isFinite(price) || price < 0) {
+      setErrorMsg("Indique un precio válido.");
+      return;
+    }
+    setSubmitting(true);
+    setErrorMsg("");
+    const parsedCost = parseFloat(editCost);
+    const res = await updateModelAction({
+      id: detailModel.id,
+      name: editName.trim(),
+      categoryName: editCategory.trim(),
+      composition: editComp,
+      basePrice: price,
+      gender: editGender,
+      avgCost: Number.isFinite(parsedCost) && parsedCost >= 0 ? parsedCost : undefined,
+      lowStockThreshold: Number.parseInt(editThreshold, 10),
+    });
+    setSubmitting(false);
+    if (res.success) {
+      setShowEditModal(false);
+      await loadDetailById(detailModel.id);
+      loadModels();
+    } else {
+      setErrorMsg(res.error || "Error al actualizar modelo");
+    }
+  }
+
+  async function handleDeleteModel() {
+    if (!detailModel) return;
+    if (!window.confirm(`¿Eliminar el modelo ${detailModel.id} (${detailModel.name})? Esta acción no se puede deshacer.`)) return;
+    setSubmitting(true);
+    setErrorMsg("");
+    const res = await deleteModelAction(detailModel.id);
+    setSubmitting(false);
+    if (res.success) {
+      setDetailId(null);
+      setModelDetail(null);
+      loadModels();
+    } else {
+      setErrorMsg(res.error || "Error al eliminar modelo");
     }
   }
 
@@ -372,15 +514,17 @@ export default function InventarioPage() {
       setErrorMsg("Solo se permiten imágenes PNG, JPG o WEBP.");
       return;
     }
-    if (file.size > COLOR_IMAGE_MAX_BYTES) {
-      setErrorMsg("La imagen supera el tamaño máximo permitido de 1.5 MB.");
+    // Accept large source photos (e.g. straight from a phone); they are
+    // downscaled client-side before upload.
+    if (file.size > 25_000_000) {
+      setErrorMsg("La imagen es demasiado grande (máx. 25 MB).");
       return;
     }
 
     try {
       setErrorMsg("");
       setImageBusyColorId(colorId);
-      const imageDataUrl = await readFileAsDataUrl(file);
+      const imageDataUrl = await compressImageToDataUrl(file);
       const res = await upsertModelColorImageAction({
         modelId: detailId,
         colorId,
@@ -435,12 +579,29 @@ export default function InventarioPage() {
         <div className="grid-2-sidebar">
           {/* Main matrix card */}
           <div className="card" style={{ padding: 24, borderRadius: "var(--radius-5xl)" }}>
-            <div className="section-label" style={{ marginBottom: 6 }}>Existencias · foto por color</div>
-            <h2 style={{ fontSize: "var(--text-3xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>
-              {detailModel.name}
-            </h2>
-            <div className="font-mono" style={{ fontSize: "var(--text-base2)", color: "var(--text-muted)", marginTop: 2, marginBottom: 20 }}>
-              {detailModel.id} · {detailModel.category}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+              <div>
+                <div className="section-label" style={{ marginBottom: 6 }}>Existencias · foto por color</div>
+                <h2 style={{ fontSize: "var(--text-3xl)", fontWeight: 800, letterSpacing: "-0.02em" }}>
+                  {detailModel.name}
+                </h2>
+                <div className="font-mono" style={{ fontSize: "var(--text-base2)", color: "var(--text-muted)", marginTop: 2, marginBottom: 20 }}>
+                  {detailModel.id} · {detailModel.category} · {detailModel.gender === "caballero" ? "Caballero" : detailModel.gender === "unisex" ? "Unisex" : "Dama"}
+                </div>
+              </div>
+              {user?.role === "admin" && (
+                <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                  <button className="btn btn-secondary btn-sm" onClick={openEditModel}>Editar</button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    style={{ color: "var(--danger)" }}
+                    onClick={handleDeleteModel}
+                    disabled={submitting}
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              )}
             </div>
             {errorMsg && (
               <div className="alert-banner alert-banner-danger" style={{ marginBottom: 14 }}>
@@ -514,7 +675,7 @@ export default function InventarioPage() {
                       return (
                         <div key={size.name} style={{ textAlign: "center" }}>
                           <div style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 10, color: "var(--text-muted)", marginBottom: 5 }}>{size.name}</div>
-                          <span style={stockCellStyle(v, threshold)}>{v}</span>
+                          <span style={stockCellStyle(v, detailThreshold)}>{v}</span>
                         </div>
                       );
                     })}
@@ -563,7 +724,7 @@ export default function InventarioPage() {
                       {detailModel.id}-{color.code}
                     </div>
                   </div>
-                  <span style={stockCellStyle(v, threshold)}>{v} und</span>
+                  <span style={stockCellStyle(v, detailThreshold)}>{v} und</span>
                 </div>
               );
             })}
@@ -623,22 +784,17 @@ export default function InventarioPage() {
                 <button className="modal-close" onClick={() => setShowAdjustModal(false)}>×</button>
               </div>
               <form onSubmit={handleAdjustStock}>
-                {errorMsg && <div className="alert-banner alert-banner-danger" style={{ marginBottom: 14 }}><p>{errorMsg}</p></div>}
+
                 
                 <div style={{ marginBottom: 14 }}>
-                  <label className="input-label">Seleccionar SKU / Variación</label>
-                  <select
-                    className="input"
-                    value={adjustSkuId || ""}
-                    onChange={(e) => setAdjustSkuId(Number(e.target.value))}
-                    required
-                  >
-                    {detailSkus.map((sku: any) => (
-                      <option key={sku.id} value={sku.id}>
-                        {sku.compositeCode} (Stock actual: {sku.stock})
-                      </option>
-                    ))}
-                  </select>
+                  <SearchCreateSelect
+                    label="Seleccionar SKU / Variación"
+                    value={adjustSkuId ? String(adjustSkuId) : ""}
+                    options={skuOptions}
+                    onChange={(v) => setAdjustSkuId(v ? Number(v) : null)}
+                    placeholder="Buscar por código, color o talla…"
+                    emptyMessage="No hay variaciones con ese criterio."
+                  />
                 </div>
 
                 <div style={{ marginBottom: 14 }}>
@@ -659,9 +815,83 @@ export default function InventarioPage() {
                   <input className="input" type="text" placeholder="Entrada de importación, conteo físico, etc." value={adjustReason} onChange={(e) => setAdjustReason(e.target.value)} required />
                 </div>
 
-                <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-                  <button type="button" className="btn btn-secondary" onClick={() => setShowAdjustModal(false)}>Cancelar</button>
-                  <button type="submit" className="btn btn-primary" disabled={submitting}>Aplicar Ajuste</button>
+                <div className="modal-footer-sticky">
+                  {errorMsg && <div className="alert-banner alert-banner-danger" style={{ marginBottom: 0 }}><p>{errorMsg}</p></div>}
+                  <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowAdjustModal(false)}>Cancelar</button>
+                    <button type="submit" className="btn btn-primary" disabled={submitting}>Aplicar Ajuste</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showEditModal && detailModel && (
+          <div className="modal-backdrop">
+            <div className="modal" style={{ maxWidth: 480 }}>
+              <div className="modal-header">
+                <h2>Editar modelo {detailModel.id}</h2>
+                <button className="modal-close" onClick={() => setShowEditModal(false)}>×</button>
+              </div>
+              <form onSubmit={handleUpdateModel}>
+
+
+                <div style={{ marginBottom: 14 }}>
+                  <label className="input-label">Nombre</label>
+                  <input className="input" type="text" value={editName} onChange={(e) => setEditName(e.target.value)} required />
+                </div>
+
+                <div style={{ marginBottom: 14 }}>
+                  <label className="input-label">Categoría</label>
+                  <input className="input" type="text" list="edit-model-categories" value={editCategory} onChange={(e) => setEditCategory(e.target.value)} required />
+                  <datalist id="edit-model-categories">
+                    {categoriesDb.map((c: any) => (
+                      <option key={c.id} value={c.name} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <div style={{ marginBottom: 14 }}>
+                  <label className="input-label">Composición</label>
+                  <input className="input" type="text" value={editComp} onChange={(e) => setEditComp(e.target.value)} />
+                </div>
+
+                <div className="grid-2" style={{ gap: 14, marginBottom: 16 }}>
+                  <div>
+                    <label className="input-label">Precio de venta (USD)</label>
+                    <input className="input" type="number" min="0" step="0.01" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} required />
+                  </div>
+                  <div>
+                    <label className="input-label">Costo (USD)</label>
+                    <input className="input" type="number" min="0" step="0.01" value={editCost} onChange={(e) => setEditCost(e.target.value)} placeholder="Costo unitario" />
+                  </div>
+                </div>
+                <div style={{ fontSize: "var(--text-sm)", color: "var(--text-muted)", marginBottom: 16, marginTop: -6 }}>
+                  El costo se aplica a las variantes sin stock. Cuando registres compras, el costo promedio se recalcula automáticamente.
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
+                  <label className="input-label">Umbral de stock bajo</label>
+                  <input className="input" type="number" min="0" step="1" value={editThreshold} onChange={(e) => setEditThreshold(e.target.value)} placeholder="3" style={{ maxWidth: 160 }} />
+                  <div style={{ fontSize: "var(--text-sm)", color: "var(--text-muted)", marginTop: 4 }}>Las tallas con stock ≤ este número se marcan como bajas. Por defecto 3.</div>
+                </div>
+
+                <div style={{ marginBottom: 20 }}>
+                  <label className="input-label">Género</label>
+                  <div className="range-selector" style={{ width: "max-content" }}>
+                    <button type="button" className={`range-btn ${editGender === "dama" ? "active" : ""}`} onClick={() => setEditGender("dama")}>Dama</button>
+                    <button type="button" className={`range-btn ${editGender === "caballero" ? "active" : ""}`} onClick={() => setEditGender("caballero")}>Caballero</button>
+                    <button type="button" className={`range-btn ${editGender === "unisex" ? "active" : ""}`} onClick={() => setEditGender("unisex")}>Unisex</button>
+                  </div>
+                </div>
+
+                <div className="modal-footer-sticky">
+                  {errorMsg && <div className="alert-banner alert-banner-danger" style={{ marginBottom: 0 }}><p>{errorMsg}</p></div>}
+                  <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowEditModal(false)}>Cancelar</button>
+                    <button type="submit" className="btn btn-primary" disabled={submitting}>Guardar cambios</button>
+                  </div>
                 </div>
               </form>
             </div>
@@ -688,7 +918,7 @@ export default function InventarioPage() {
           ))}
         </div>
         <div className="page-toolbar-spacer" />
-        <button className="btn btn-secondary btn-sm">{catalogIcon} Generar catálogo</button>
+        <button className="btn btn-secondary btn-sm" onClick={() => router.push("/catalogo")}>{catalogIcon} Generar catálogo</button>
         <button
           className="btn btn-primary btn-sm"
           onClick={() => {
@@ -696,7 +926,7 @@ export default function InventarioPage() {
             setShowAddModal(true);
           }}
         >
-          {plusIcon} Cargar mercancía
+          {plusIcon} Nuevo modelo
         </button>
       </div>
 
@@ -706,7 +936,7 @@ export default function InventarioPage() {
         <div className="responsive-table-scroll">
         <div style={{
           display: "grid",
-          gridTemplateColumns: "2.6fr 1.1fr 1.4fr 0.9fr 1fr 40px",
+          gridTemplateColumns: "2.4fr 1fr 2fr 0.9fr 1fr 40px",
           gap: 14,
           minWidth: 860,
           padding: "14px 22px",
@@ -727,7 +957,7 @@ export default function InventarioPage() {
         {/* Model rows */}
         {filtered.map((m) => {
           const hasZero = m.skus.some((s: any) => s.stock === 0);
-          const lowCount = m.skus.filter((s: any) => s.stock <= threshold && s.stock > 0).length;
+          const lowCount = m.skus.filter((s: any) => s.stock <= (m.lowStockThreshold ?? threshold) && s.stock > 0).length;
           const tagLabel = hasZero ? "Agotado" : lowCount > 0 ? `${lowCount} bajo` : "";
           const tagClass = hasZero ? "badge badge-danger" : lowCount > 0 ? "badge badge-warning" : "";
 
@@ -748,7 +978,12 @@ export default function InventarioPage() {
               <div style={{ display: "flex", alignItems: "center", gap: 13, minWidth: 0 }}>
                 <ProductThumb category={m.category} />
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: "var(--text-md2)", fontWeight: 600 }}>{m.name}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                    <span style={{ fontSize: "var(--text-md2)", fontWeight: 600 }}>{m.name}</span>
+                    <span className="badge badge-neutral" style={{ fontSize: "9px", padding: "1px 6px" }}>
+                      {m.gender === "caballero" ? "Caballero" : m.gender === "unisex" ? "Unisex" : "Dama"}
+                    </span>
+                  </div>
                   <div className="font-mono" style={{ fontSize: "var(--text-sm)", color: "var(--text-muted)" }}>
                     {m.id} · {m.composition}
                   </div>
@@ -761,9 +996,9 @@ export default function InventarioPage() {
               </span>
 
               {/* Color dots */}
-              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 4, alignItems: "center", alignContent: "center", flexWrap: "wrap", minWidth: 0 }}>
                 {m.colors.map((c: any) => (
-                  <div key={c.code} className="color-swatch" title={c.name} style={{ background: c.hex || "#ccc" }} />
+                  <div key={c.code} className="color-swatch" title={`${c.code} · ${c.name}`} style={{ background: c.hex || "#ccc" }} />
                 ))}
               </div>
 
@@ -797,7 +1032,7 @@ export default function InventarioPage() {
               <button className="modal-close" onClick={() => setShowAddModal(false)}>×</button>
             </div>
             <form onSubmit={handleCreateModel}>
-              {errorMsg && <div className="alert-banner alert-banner-danger" style={{ marginBottom: 14 }}><p>{errorMsg}</p></div>}
+
 
               <div className="grid-2" style={{ gap: 14, marginBottom: 14 }}>
                 <div>
@@ -832,6 +1067,15 @@ export default function InventarioPage() {
                 </div>
               </div>
 
+              <div style={{ marginBottom: 14 }}>
+                <label className="input-label">Género</label>
+                <div className="range-selector" style={{ width: "max-content" }}>
+                  <button type="button" className={`range-btn ${newModelGender === "dama" ? "active" : ""}`} onClick={() => setNewModelGender("dama")}>Dama</button>
+                  <button type="button" className={`range-btn ${newModelGender === "caballero" ? "active" : ""}`} onClick={() => setNewModelGender("caballero")}>Caballero</button>
+                  <button type="button" className={`range-btn ${newModelGender === "unisex" ? "active" : ""}`} onClick={() => setNewModelGender("unisex")}>Unisex</button>
+                </div>
+              </div>
+
               <div className="grid-2" style={{ gap: 14, marginBottom: 14 }}>
                 <div>
                   <label className="input-label">Precio de venta (USD)</label>
@@ -844,42 +1088,66 @@ export default function InventarioPage() {
               </div>
 
               <div style={{ marginBottom: 14 }}>
+                <label className="input-label">Umbral de stock bajo</label>
+                <input className="input" type="number" min="0" step="1" value={newModelThreshold} onChange={(e) => setNewModelThreshold(e.target.value)} placeholder="3" style={{ maxWidth: 160 }} />
+                <div style={{ fontSize: "var(--text-sm)", color: "var(--text-muted)", marginTop: 4 }}>Las tallas con stock ≤ este número se marcan como bajas. Por defecto 3.</div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
                 <label className="input-label">Composición de tela</label>
                 <input className="input" type="text" placeholder="94% Poliéster · 6% Spandex" value={newModelComp} onChange={(e) => setNewModelComp(e.target.value)} />
               </div>
 
-              {/* Color swatches checklist */}
+              {/* Color swatches checklist with search */}
               <div style={{ marginBottom: 14 }}>
-                <label className="input-label">Colores disponibles</label>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
-                  {colorsDb.map((c) => {
-                    const active = selectedColorIds.includes(c.id);
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => {
-                          if (active) setSelectedColorIds(selectedColorIds.filter(id => id !== c.id));
-                          else setSelectedColorIds([...selectedColorIds, c.id]);
-                        }}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 6,
-                          padding: "6px 10px",
-                          borderRadius: 8,
-                          border: active ? "1.5px solid #15151A" : "1.5px solid var(--border-light)",
-                          background: active ? "#F0EEE8" : "#fff",
-                          cursor: "pointer",
-                          fontSize: "var(--text-sm2)",
-                          fontWeight: 600,
-                        }}
-                      >
-                        <span style={{ width: 10, height: 10, borderRadius: "50%", background: c.hex, border: "1px solid rgba(0,0,0,.1)" }} />
-                        {c.name}
-                      </button>
-                    );
-                  })}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <label className="input-label" style={{ marginBottom: 0 }}>Colores disponibles</label>
+                  <span style={{ fontSize: "var(--text-sm)", color: "var(--text-muted)" }}>{selectedColorIds.length} seleccionados</span>
+                </div>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="Buscar color por código o nombre (ej. Z16, verde)…"
+                  value={colorSearch}
+                  onChange={(e) => setColorSearch(e.target.value)}
+                  style={{ marginBottom: 10 }}
+                />
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", maxHeight: 200, overflowY: "auto" }}>
+                  {colorsDb
+                    .filter((c) => {
+                      const q = colorSearch.trim().toLowerCase();
+                      if (!q) return true;
+                      return `${c.code} ${c.name}`.toLowerCase().includes(q);
+                    })
+                    .map((c) => {
+                      const active = selectedColorIds.includes(c.id);
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            if (active) setSelectedColorIds(selectedColorIds.filter(id => id !== c.id));
+                            else setSelectedColorIds([...selectedColorIds, c.id]);
+                          }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "6px 10px",
+                            borderRadius: 8,
+                            border: active ? "1.5px solid #15151A" : "1.5px solid var(--border-light)",
+                            background: active ? "#F0EEE8" : "#fff",
+                            cursor: "pointer",
+                            fontSize: "var(--text-sm2)",
+                            fontWeight: 600,
+                          }}
+                        >
+                          <span style={{ width: 10, height: 10, borderRadius: "50%", background: c.hex, border: "1px solid rgba(0,0,0,.1)" }} />
+                          <span style={{ color: "var(--text-muted)", fontWeight: 700 }}>{c.code}</span>
+                          {c.name}
+                        </button>
+                      );
+                    })}
                 </div>
               </div>
 
@@ -918,9 +1186,12 @@ export default function InventarioPage() {
                 </div>
               )}
 
-              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowAddModal(false)}>Cancelar</button>
-                <button type="submit" className="btn btn-primary" disabled={submitting}>Crear Modelo</button>
+              <div className="modal-footer-sticky">
+                {errorMsg && <div className="alert-banner alert-banner-danger" style={{ marginBottom: 0 }}><p>{errorMsg}</p></div>}
+                <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowAddModal(false)}>Cancelar</button>
+                  <button type="submit" className="btn btn-primary" disabled={submitting}>Crear Modelo</button>
+                </div>
               </div>
             </form>
           </div>

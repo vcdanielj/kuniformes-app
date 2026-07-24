@@ -6,7 +6,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "vendedor";
+  role: "admin" | "vendedor" | "usuario";
   active: boolean;
 }
 

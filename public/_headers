@@ -1,0 +1,8 @@
+# Force the service worker and manifest to always revalidate so PWA updates
+# are picked up promptly. Hashed assets (/_next/static, /icons) keep their
+# default long cache.
+/sw.js
+  Cache-Control: no-cache, max-age=0, must-revalidate
+
+/manifest.webmanifest
+  Cache-Control: no-cache, max-age=0, must-revalidate

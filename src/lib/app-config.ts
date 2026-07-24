@@ -31,12 +31,28 @@ export const SYSTEM_DEFAULTS = {
   },
 } as const;
 
-export const ADMIN_ONLY_NAV_ITEMS = new Set([
-  "compras",
-  "gastos",
-  "config",
-]);
+export type UserRole = "admin" | "vendedor" | "usuario";
 
-export function canAccessNavItem(role: "admin" | "vendedor", key: string) {
-  return role === "admin" || !ADMIN_ONLY_NAV_ITEMS.has(key);
+// Nav items each non-admin role may NOT access. Admin sees everything.
+// - usuario (operador): everything except the dashboard/metrics and the audit log.
+// - vendedor: operational only (no compras/gastos/config/actividad).
+const NAV_DENY_BY_ROLE: Record<UserRole, Set<string>> = {
+  admin: new Set<string>(),
+  usuario: new Set<string>(["panel", "actividad"]),
+  vendedor: new Set<string>(["compras", "gastos", "config", "actividad"]),
+};
+
+// Config tabs the role may NOT see (user management stays admin-only).
+const CONFIG_TAB_DENY_BY_ROLE: Record<UserRole, Set<string>> = {
+  admin: new Set<string>(),
+  usuario: new Set<string>(["usuarios"]),
+  vendedor: new Set<string>(["usuarios"]),
+};
+
+export function canAccessNavItem(role: UserRole, key: string) {
+  return !(NAV_DENY_BY_ROLE[role] ?? new Set<string>()).has(key);
+}
+
+export function canAccessConfigTab(role: UserRole, tab: string) {
+  return !(CONFIG_TAB_DENY_BY_ROLE[role] ?? new Set<string>()).has(tab);
 }

@@ -19,40 +19,36 @@ export async function GET(request: NextRequest) {
 
     const term = `%${query}%`;
 
-    // Query customers
-    const matchedCustomers = await db
-      .select({ id: customers.id, name: customers.name, phone: customers.phone })
-      .from(customers)
-      .where(or(like(customers.name, term), like(customers.phone, term)))
-      .limit(5);
+    const [matchedCustomers, matchedModels, matchedSales, matchedQuotes] = await Promise.all([
+      db
+        .select({ id: customers.id, name: customers.name, phone: customers.phone })
+        .from(customers)
+        .where(or(like(customers.name, term), like(customers.phone, term)))
+        .limit(5),
+      db
+        .select({ id: models.id, name: models.name })
+        .from(models)
+        .where(or(like(models.id, term), like(models.name, term)))
+        .limit(5),
+      db
+        .select({ id: sales.id, number: sales.number })
+        .from(sales)
+        .where(like(sales.number, term))
+        .limit(5),
+      db
+        .select({ id: quotes.id, number: quotes.number })
+        .from(quotes)
+        .where(like(quotes.number, term))
+        .limit(5),
+    ]);
 
-    // Query models
-    const matchedModels = await db
-      .select({ id: models.id, name: models.name })
-      .from(models)
-      .where(or(like(models.id, term), like(models.name, term)))
-      .limit(5);
-
-    // Query sales (Notes of Entry)
-    const matchedSales = await db
-      .select({ id: sales.id, number: sales.number })
-      .from(sales)
-      .where(like(sales.number, term))
-      .limit(5);
-
-    // Query quotes
-    const matchedQuotes = await db
-      .select({ id: quotes.id, number: quotes.number })
-      .from(quotes)
-      .where(like(quotes.number, term))
-      .limit(5);
-
-    return Response.json({
+    const payload = {
       customers: matchedCustomers,
       models: matchedModels,
       sales: matchedSales,
       quotes: matchedQuotes,
-    });
+    };
+    return Response.json(payload);
   } catch (e: unknown) {
     console.error("Search API error:", e);
     return new Response("Error al buscar", { status: 500 });

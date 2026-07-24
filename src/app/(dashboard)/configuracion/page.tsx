@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { useUser } from "../UserContext";
+import { PushToggle } from "@/components/ui/PushToggle";
+import { InstallButton } from "@/components/ui/InstallButton";
 import {
   addCarrier,
   addCategory,
@@ -31,7 +34,7 @@ import {
   updateUserActiveAction,
   updateUserRoleAction,
 } from "@/lib/db/actions";
-import { SETTINGS_KEYS, SYSTEM_DEFAULTS } from "@/lib/app-config";
+import { SETTINGS_KEYS, SYSTEM_DEFAULTS, canAccessConfigTab } from "@/lib/app-config";
 import { formatRate } from "@/lib/utils";
 
 type ConfigTab = "colores" | "tallas" | "categorias" | "metodos" | "transportistas" | "tasa" | "usuarios";
@@ -46,7 +49,7 @@ type UserOption = {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "vendedor";
+  role: "admin" | "vendedor" | "usuario";
   active: boolean;
   createdAt: string;
 };
@@ -155,6 +158,7 @@ function EntityCard({
 }
 
 export default function ConfiguracionPage() {
+  const router = useRouter();
   const user = useUser();
   const [tab, setTab] = useState<ConfigTab>("colores");
   const [loading, setLoading] = useState(true);
@@ -179,7 +183,7 @@ export default function ConfiguracionPage() {
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [userPassword, setUserPassword] = useState("");
-  const [userRole, setUserRole] = useState<"admin" | "vendedor">("vendedor");
+  const [userRole, setUserRole] = useState<"admin" | "vendedor" | "usuario">("vendedor");
 
   const [rateParalelo, setRateParalelo] = useState("");
   const [rateBcv, setRateBcv] = useState("");
@@ -190,14 +194,20 @@ export default function ConfiguracionPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<null | {
+    message: string;
+    action: () => Promise<ActionResult>;
+  }>(null);
 
   async function loadData() {
     try {
       setLoading(true);
-      const data = await getConfigData();
+      const [data, loadedUsers] = await Promise.all([
+        getConfigData(),
+        user?.role === "admin" ? getUsersListAction() : Promise.resolve([] as UserOption[]),
+      ]);
       setDbData(data as ConfigPageData);
       if (user?.role === "admin") {
-        const loadedUsers = await getUsersListAction();
         setUsersList(loadedUsers as UserOption[]);
       } else {
         setUsersList([]);
@@ -344,7 +354,13 @@ export default function ConfiguracionPage() {
   }
 
   async function confirmAndRun(message: string, action: () => Promise<ActionResult>) {
-    if (!confirm(message)) return;
+    setConfirmDialog({ message, action });
+  }
+
+  async function handleConfirmDialog() {
+    if (!confirmDialog) return;
+    const action = confirmDialog.action;
+    setConfirmDialog(null);
     await runAction(action);
   }
 
@@ -452,6 +468,7 @@ export default function ConfiguracionPage() {
       await updateSetting(SETTINGS_KEYS.lowStockThreshold, stockThreshold);
       await updateSetting(SETTINGS_KEYS.defaultRateSource, "paralelo");
       await loadData();
+      window.dispatchEvent(new Event("ku:sidebar-refresh"));
       setSuccessMsg("Tasas manuales y parámetros actualizados correctamente.");
     } catch (e: any) {
       console.error(e);
@@ -469,6 +486,7 @@ export default function ConfiguracionPage() {
         throw new Error(res.error || "No se pudieron sincronizar las tasas.");
       }
       await loadData();
+      window.dispatchEvent(new Event("ku:sidebar-refresh"));
       setSuccessMsg("Tasas actualizadas desde DolarAPI y cacheadas en D1.");
     } catch (e: any) {
       console.error(e);
@@ -482,7 +500,7 @@ export default function ConfiguracionPage() {
     await runAction(() => updateUserActiveAction(targetUserId, nextActive));
   }
 
-  async function handleChangeUserRole(targetUserId: string, nextRole: "admin" | "vendedor") {
+  async function handleChangeUserRole(targetUserId: string, nextRole: "admin" | "vendedor" | "usuario") {
     await runAction(() => updateUserRoleAction(targetUserId, nextRole));
   }
 
@@ -494,24 +512,26 @@ export default function ConfiguracionPage() {
     );
   }
 
-  if (user && user.role !== "admin") {
+  if (user && user.role !== "admin" && user.role !== "usuario") {
     return (
       <div className="access-state-card animate-pop-in" style={{ marginTop: 40 }}>
         <div className="access-state-icon" aria-hidden="true">!</div>
         <h2 className="state-title">Acceso no autorizado</h2>
         <p className="state-copy">
-          Lo sentimos, solo los administradores tienen permiso para gestionar los parámetros del sistema.
+          No tienes permiso para gestionar los parámetros del sistema.
         </p>
       </div>
     );
   }
+
+  const visibleTabs = tabs.filter((t) => canAccessConfigTab(user?.role ?? "vendedor", t.key));
 
   return (
     <div className="animate-fade-in">
       <div className="settings-layout">
         <div className="card" style={{ borderRadius: "var(--radius-5xl)", padding: "14px 10px", height: "max-content" }}>
           <nav className="settings-nav">
-            {tabs.map((t) => (
+            {visibleTabs.map((t) => (
               <button key={t.key} onClick={() => setTab(t.key)} className={`settings-nav-btn ${tab === t.key ? "active" : ""}`}>
                 {t.label}
               </button>
@@ -520,6 +540,30 @@ export default function ConfiguracionPage() {
         </div>
 
         <div className="card" style={{ borderRadius: "var(--radius-5xl)", padding: 24 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+              marginBottom: 18,
+            }}
+          >
+            <div>
+              <div className="section-label" style={{ marginBottom: 4 }}>Acciones rápidas</div>
+              <div style={{ fontSize: "var(--text-sm2)", color: "var(--text-muted)" }}>
+                Desde aquí también puedes abrir el flujo para registrar un nuevo modelo.
+              </div>
+            </div>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => router.push("/inventario?newModel=1")}
+            >
+              {plusIcon} Nuevo modelo
+            </button>
+          </div>
+
           {successMsg ? (
             <div className="alert-banner alert-banner-success" style={{ marginBottom: 16 }}>
               <p>{successMsg}</p>
@@ -530,6 +574,10 @@ export default function ConfiguracionPage() {
               <p>{errorMsg}</p>
             </div>
           ) : null}
+
+          <InstallButton />
+
+          {user?.role === "admin" ? <PushToggle /> : null}
 
           {tab === "colores" && (
             <>
@@ -760,11 +808,12 @@ export default function ConfiguracionPage() {
                           <div className="font-mono" style={{ fontSize: "var(--text-sm2)", color: "var(--text-muted)", marginTop: 4 }}>{listedUser.email}</div>
                           <div style={{ fontSize: "var(--text-sm2)", color: "var(--text-muted)", marginTop: 4 }}>Creado: {listedUser.createdAt}</div>
                         </div>
-                        <div style={{ display: "grid", gap: 10, minWidth: 320, flex: "1 1 320px" }}>
+                        <div style={{ display: "grid", gap: 10, minWidth: 0, flex: "1 1 260px" }}>
                           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                            <select className="input" value={listedUser.role} disabled={submitting} onChange={(e) => handleChangeUserRole(listedUser.id, e.target.value as "admin" | "vendedor")} style={{ maxWidth: 160 }}>
+                            <select className="input" value={listedUser.role} disabled={submitting} onChange={(e) => handleChangeUserRole(listedUser.id, e.target.value as "admin" | "vendedor" | "usuario")} style={{ maxWidth: 160 }}>
                               <option value="admin">Admin</option>
                               <option value="vendedor">Vendedor</option>
+                              <option value="usuario">Usuario</option>
                             </select>
                             <span className={`badge ${listedUser.active ? "badge-success" : "badge-neutral"}`}>{listedUser.active ? "Activo" : "Inactivo"}</span>
                           </div>
@@ -925,9 +974,10 @@ export default function ConfiguracionPage() {
                 ) : null}
                 <div style={{ marginBottom: 20 }}>
                   <label className="input-label">Rol</label>
-                  <select className="input" value={userRole} onChange={(e) => setUserRole(e.target.value as "admin" | "vendedor")}>
+                  <select className="input" value={userRole} onChange={(e) => setUserRole(e.target.value as "admin" | "vendedor" | "usuario")}>
                     <option value="admin">Administrador</option>
                     <option value="vendedor">Vendedor</option>
+                    <option value="usuario">Usuario</option>
                   </select>
                 </div>
                 <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
@@ -949,6 +999,33 @@ export default function ConfiguracionPage() {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {confirmDialog && (
+        <div className="modal-backdrop">
+          <div className="modal-content animate-pop-in" style={{ maxWidth: 460 }}>
+            <div className="modal-header">
+              <h4>Confirmar acción</h4>
+              <button className="btn-close" onClick={() => setConfirmDialog(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="alert-banner alert-banner-warning" style={{ marginBottom: 14 }}>
+                <p>{confirmDialog.message}</p>
+              </div>
+              <p style={{ fontSize: "var(--text-md)", color: "var(--text-secondary)" }}>
+                Esta operación puede afectar catálogos, métodos o accesos del sistema.
+              </p>
+            </div>
+            <div className="modal-footer" style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setConfirmDialog(null)}>
+                Cancelar
+              </button>
+              <button type="button" className="btn btn-primary" disabled={submitting} onClick={handleConfirmDialog}>
+                {submitting ? "Procesando..." : "Confirmar"}
+              </button>
+            </div>
           </div>
         </div>
       )}

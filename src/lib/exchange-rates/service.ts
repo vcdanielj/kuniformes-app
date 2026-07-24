@@ -386,6 +386,40 @@ export async function getExchangeRatesOverview(bindings?: { DB?: unknown } | nul
   };
 }
 
+// Binance P2P blocks Cloudflare datacenter IPs (403). CriptoYa relays the live
+// Binance P2P USDT/VES book from a non-blocked IP, so we read the Binance rate
+// through it. `ask` = price to BUY USDT (matches the original tradeType:"BUY").
+const CRIPTOYA_BINANCE_URL = "https://criptoya.com/api/binancep2p/USDT/VES/1";
+
+// Business markup applied on top of the live Binance P2P parallel rate. The
+// stored/used parallel rate is the Binance price +3%.
+const BINANCE_PARALLEL_MARKUP = 0.03;
+
+/**
+ * Live parallel USD rate = Binance P2P (USDT/VES, buy side), via the CriptoYa
+ * relay so it works from the Cloudflare Worker, with a +3% business markup.
+ */
+export async function fetchBinanceParallelRate(): Promise<number> {
+  const res = await fetch(CRIPTOYA_BINANCE_URL, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "Mozilla/5.0 (compatible; KUniformes/1.0)",
+    },
+    cache: "no-store",
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) {
+    throw new Error(`CriptoYa (Binance P2P) respondio ${res.status}.`);
+  }
+  const json = (await res.json()) as { ask?: number; totalAsk?: number; bid?: number };
+  const price = Number(json?.ask ?? json?.totalAsk ?? json?.bid);
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new Error("Precio invalido recibido de Binance P2P (CriptoYa).");
+  }
+  // Apply the +3% business markup, rounded to 2 decimals for clean storage/display.
+  return Math.round(price * (1 + BINANCE_PARALLEL_MARKUP) * 100) / 100;
+}
+
 export async function syncDolarApiRates(options?: {
   bindings?: { DB?: unknown } | null;
   includeHistory?: boolean;
@@ -394,6 +428,35 @@ export async function syncDolarApiRates(options?: {
 
   try {
     const currentSnapshots = await fetchCurrentDolarApiSnapshots();
+
+    // Live USD parallel rate now comes from Binance P2P. The historical series
+    // (chart) stays on DolarAPI; only the current parallel point is overridden.
+    let binanceNote = "binance:skip";
+    try {
+      const binanceRate = await fetchBinanceParallelRate();
+      for (let i = 0; i < currentSnapshots.length; i += 1) {
+        const s = currentSnapshots[i];
+        if (s.currencyCode === "USD" && s.source === "paralelo") {
+          currentSnapshots[i] = {
+            ...s,
+            date: toDateOnly(null),
+            rate: binanceRate,
+            provider: "binance",
+            displayName: "Dolar Paralelo (Binance)",
+            buy: null,
+            sell: binanceRate,
+            average: binanceRate,
+            externalUpdatedAt: new Date().toISOString(),
+          };
+        }
+      }
+      binanceNote = `binance:${binanceRate.toFixed(3)}`;
+    } catch (binanceError) {
+      // Keep the DolarAPI parallel current snapshot as fallback.
+      const msg = binanceError instanceof Error ? binanceError.message : "error";
+      binanceNote = `binance_fallback:${msg.slice(0, 40)}`;
+    }
+
     const historySnapshots = options?.includeHistory
       ? await fetchHistoricalDolarApiSnapshots()
       : [];
@@ -405,7 +468,7 @@ export async function syncDolarApiRates(options?: {
     await upsertSetting(
       db,
       SETTINGS_KEYS.lastRatesSyncStatus,
-      formatSyncStatus("ok", `DolarAPI:${inserted}`)
+      formatSyncStatus("ok", `${binanceNote};dolarapi:${inserted}`)
     );
 
     return {
@@ -413,17 +476,18 @@ export async function syncDolarApiRates(options?: {
       inserted,
       currentSnapshots,
     };
-  } catch (error: any) {
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Sin detalle";
     await upsertSetting(db, SETTINGS_KEYS.lastRatesSyncAt, new Date().toISOString());
     await upsertSetting(
       db,
       SETTINGS_KEYS.lastRatesSyncStatus,
-      formatSyncStatus("fallback", error?.message || "Sin detalle")
+      formatSyncStatus("fallback", msg)
     );
 
     return {
       success: false as const,
-      error: error?.message || "No se pudieron sincronizar las tasas.",
+      error: msg || "No se pudieron sincronizar las tasas.",
     };
   }
 }

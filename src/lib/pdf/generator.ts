@@ -167,7 +167,9 @@ function drawWrappedText(
 
 function drawFooter(page: PDFPage, pageNumber: number, totalPages: number, font: PDFFont, brand: BrandInfo) {
   const { width } = page.getSize();
-  const footerText = `${brand.instagram || ""}${brand.phone ? ` · ${brand.phone}` : ""}${brand.rif ? ` · ${brand.rif}` : ""}`;
+  // Customer-facing documents must not surface the RIF. Footer shows only the
+  // public contact (instagram + phone).
+  const footerText = `${brand.instagram || ""}${brand.phone ? ` · ${brand.phone}` : ""}`;
   const pageLabel = `Pagina ${pageNumber} de ${totalPages}`;
 
   page.drawLine({
@@ -408,13 +410,7 @@ function drawDocumentInfoPanels(
     font: fonts.bold,
     color: cBlack,
   });
-  page.drawText(`Fuente: ${data.rateSource}`, {
-    x: 304,
-    y: y - 34,
-    size: 9,
-    font: fonts.regular,
-    color: cGray,
-  });
+  // The rate SOURCE is intentionally omitted from customer-facing documents.
 
   return y - 70;
 }
@@ -601,7 +597,7 @@ export async function generateDocumentPdf(
     font: helveticaBold,
     color: cGray,
   });
-  page.drawText(`Tasa guardada: ${formatRate(data.rateUsed)} Bs/USD · ${data.rateSource}`, {
+  page.drawText(`Tasa guardada: ${formatRate(data.rateUsed)} Bs/USD`, {
     x: 52,
     y: y - 20,
     size: 9.5,
@@ -657,7 +653,7 @@ export async function generateDocumentPdf(
       const original = payment.currency && payment.currency.toUpperCase() !== "USD" && payment.amountOriginal
         ? `${payment.amountOriginal.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${payment.currency}`
         : formatUSD(payment.amountUsd);
-      const paymentLine = `${payment.name}: ${original} -> ${formatUSD(payment.amountUsd)}${payment.rateUsed ? ` @ ${formatRate(payment.rateUsed)} (${payment.rateSource || "manual"})` : ""}${payment.reference ? ` · ${payment.reference}` : ""}`;
+      const paymentLine = `${payment.name}: ${original} -> ${formatUSD(payment.amountUsd)}${payment.rateUsed ? ` @ ${formatRate(payment.rateUsed)}` : ""}${payment.reference ? ` · ${payment.reference}` : ""}`;
       const paymentLines = splitText(helveticaFont, paymentLine, 9, width - 100);
       if (y - paymentLines.length * 12 < PAGE_BOTTOM + 50) {
         page = pdfDoc.addPage(pageSize);

@@ -1,15 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { getInventoryModels } from "@/lib/db/actions";
 import { formatUSD } from "@/lib/utils";
+import { filterCatalogModels } from "@/lib/catalog-filter";
 
 type CatFilter = "all" | string;
+
+const SIZE_ORDER = ["XS", "S", "M", "L", "XL", "2XL", "XXL", "3XL"];
 
 export default function CatalogoPage() {
   const [loading, setLoading] = useState(true);
   const [modelsList, setModelsList] = useState<any[]>([]);
   const [catFilter, setCatFilter] = useState<CatFilter>("all");
+  const [genderFilter, setGenderFilter] = useState<"all" | "dama" | "caballero" | "unisex">("all");
+  const [onlyStock, setOnlyStock] = useState(false);
+  const [sizeFilter, setSizeFilter] = useState<string[]>([]);
+  const [colorFilter, setColorFilter] = useState<string[]>([]);
   const [showPrices, setShowPrices] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -32,11 +39,56 @@ export default function CatalogoPage() {
   }, []);
 
   const allCats = [...new Set(modelsList.map((m) => m.category))];
-  const filtered = catFilter === "all" ? modelsList : modelsList.filter((m) => m.category === catFilter);
+
+  // Build the available size + color universe from the loaded models.
+  const allSizes = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of modelsList) {
+      if (m.type !== "con_tallas") continue;
+      for (const s of m.skus || []) {
+        if (s.sizeId == null) continue;
+        const sz = (s.compositeCode || "").split("-").pop();
+        if (sz) set.add(sz);
+      }
+    }
+    return [...set].sort((a, b) => SIZE_ORDER.indexOf(a) - SIZE_ORDER.indexOf(b));
+  }, [modelsList]);
+
+  const allColors = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const m of modelsList) for (const c of m.colors || []) if (!map.has(c.code)) map.set(c.code, c);
+    return [...map.values()];
+  }, [modelsList]);
+
+  const filtered = useMemo(
+    () => filterCatalogModels(modelsList, {
+      category: catFilter,
+      gender: genderFilter,
+      onlyStock,
+      sizes: sizeFilter,
+      colors: colorFilter,
+    }),
+    [modelsList, catFilter, genderFilter, onlyStock, sizeFilter, colorFilter]
+  );
+
+  function toggle(list: string[], setList: (v: string[]) => void, value: string) {
+    setList(list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
+  }
 
   function handleExportPdf() {
-    window.open(`/api/catalogo?showPrices=${showPrices}`, "_blank");
+    const params = new URLSearchParams();
+    params.set("showPrices", String(showPrices));
+    if (catFilter !== "all") params.set("category", catFilter);
+    if (genderFilter !== "all") params.set("gender", genderFilter);
+    if (onlyStock) params.set("onlyStock", "true");
+    if (sizeFilter.length) params.set("sizes", sizeFilter.join(","));
+    if (colorFilter.length) params.set("colors", colorFilter.join(","));
+    window.open(`/api/catalogo?${params.toString()}`, "_blank");
   }
+
+  const activeFilterCount =
+    (catFilter !== "all" ? 1 : 0) + (genderFilter !== "all" ? 1 : 0) +
+    (onlyStock ? 1 : 0) + sizeFilter.length + colorFilter.length;
 
   if (loading) {
     return (
@@ -56,7 +108,7 @@ export default function CatalogoPage() {
 
       {/* Filter bar */}
       <div className="page-toolbar">
-        <div className="range-selector">
+        <div className="range-selector is-scrollable">
           <button className={`range-btn ${catFilter === "all" ? "active" : ""}`} onClick={() => setCatFilter("all")}>
             Todos
           </button>
@@ -87,20 +139,99 @@ export default function CatalogoPage() {
         </button>
       </div>
 
+      {/* Secondary filters */}
+      <div className="card" style={{ borderRadius: "var(--radius-4xl)", padding: 16, marginBottom: 16, display: "flex", flexWrap: "wrap", gap: 18, alignItems: "flex-start" }}>
+        <div>
+          <div className="section-label" style={{ fontSize: "var(--text-xs2)", marginBottom: 6 }}>Género</div>
+          <div className="range-selector is-scrollable" style={{ maxWidth: "100%" }}>
+            {(["all", "dama", "caballero", "unisex"] as const).map((g) => (
+              <button key={g} className={`range-btn ${genderFilter === g ? "active" : ""}`} onClick={() => setGenderFilter(g)}>
+                {g === "all" ? "Todos" : g === "dama" ? "Dama" : g === "caballero" ? "Caballero" : "Unisex"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="section-label" style={{ fontSize: "var(--text-xs2)", marginBottom: 6 }}>Disponibilidad</div>
+          <label className="toolbar-checkbox">
+            <input type="checkbox" checked={onlyStock} onChange={(e) => setOnlyStock(e.target.checked)} />
+            Solo con stock
+          </label>
+        </div>
+
+        {allSizes.length > 0 && (
+          <div style={{ minWidth: 0 }}>
+            <div className="section-label" style={{ fontSize: "var(--text-xs2)", marginBottom: 6 }}>Tallas</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {allSizes.map((sz) => (
+                <button
+                  key={sz}
+                  type="button"
+                  className={`range-btn ${sizeFilter.includes(sz) ? "active" : ""}`}
+                  style={{ padding: "5px 11px" }}
+                  onClick={() => toggle(sizeFilter, setSizeFilter, sz)}
+                >
+                  {sz}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {allColors.length > 0 && (
+          <div style={{ minWidth: 0, flex: "1 1 240px" }}>
+            <div className="section-label" style={{ fontSize: "var(--text-xs2)", marginBottom: 6 }}>Colores</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", maxHeight: 96, overflowY: "auto" }}>
+              {allColors.map((c) => {
+                const active = colorFilter.includes(c.code);
+                return (
+                  <button
+                    key={c.code}
+                    type="button"
+                    onClick={() => toggle(colorFilter, setColorFilter, c.code)}
+                    title={`${c.code} · ${c.name}`}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 5, padding: "4px 8px", borderRadius: 7,
+                      border: active ? "1.5px solid #15151A" : "1.5px solid var(--border-light)",
+                      background: active ? "#F0EEE8" : "#fff", cursor: "pointer", fontSize: "var(--text-sm)", fontWeight: 600,
+                    }}
+                  >
+                    <span style={{ width: 11, height: 11, borderRadius: "50%", background: c.hex, border: "1px solid rgba(0,0,0,.12)" }} />
+                    {c.code}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {activeFilterCount > 0 && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-xs"
+            style={{ alignSelf: "center" }}
+            onClick={() => { setCatFilter("all"); setGenderFilter("all"); setOnlyStock(false); setSizeFilter([]); setColorFilter([]); }}
+          >
+            Limpiar filtros ({activeFilterCount})
+          </button>
+        )}
+      </div>
+
       {/* Product grid */}
       {filtered.length === 0 ? (
         <div className="empty-state-card">
           <strong>Sin prendas en esta categoría.</strong> Ajusta el filtro o carga nuevos modelos para verlos aquí.
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
           {filtered.map((m) =>
             m.colors.map((color: any) => {
               return (
                 <div key={`${m.id}-${color.code}`} className="card" style={{ borderRadius: "var(--radius-5xl)", padding: 0, overflow: "hidden" }}>
                   {/* Image area */}
                   <div style={{
-                    height: 140,
+                    height: 240,
                     background: `linear-gradient(135deg, ${color.hex}22, ${color.hex}44)`,
                     display: "flex",
                     alignItems: "center",

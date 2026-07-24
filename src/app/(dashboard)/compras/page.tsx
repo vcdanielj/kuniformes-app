@@ -5,9 +5,13 @@ import { useUser } from "../UserContext";
 import {
   getSuppliers,
   createSupplier,
+  updateSupplierAction,
+  deleteSupplierAction,
   getPurchasesData,
   createPurchase,
   receivePurchase,
+  receivePurchaseItemsAction,
+  deletePurchaseAction,
   getInventoryModels,
 } from "@/lib/db/actions";
 import { formatUSD } from "@/lib/utils";
@@ -15,9 +19,17 @@ import { SearchCreateSelect, type SearchCreateOption } from "@/components/ui/Sea
 
 function estadoBadge(e: string): string {
   if (e === "recibida") return "badge badge-success";
+  if (e === "parcial") return "badge badge-info";
   if (e === "en_transito") return "badge badge-warning";
   if (e === "borrador") return "badge badge-neutral";
   return "badge badge-neutral";
+}
+
+function estadoLabel(e: string): string {
+  if (e === "recibida") return "Recibido";
+  if (e === "parcial") return "Parcial";
+  if (e === "en_transito") return "En tránsito";
+  return "Borrador";
 }
 
 const plusIcon = (
@@ -42,11 +54,20 @@ export default function ComprasPage() {
   // Modals
   const [showSupplierModal, setShowSupplierModal] = useState(false);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const [purchaseToReceive, setPurchaseToReceive] = useState<{ id: number; number?: string } | null>(null);
+  const [partialPurchase, setPartialPurchase] = useState<any | null>(null);
+  const [partialQty, setPartialQty] = useState<Record<number, string>>({});
 
   // New Supplier Form
   const [supName, setSupName] = useState("");
   const [supItems, setSupItems] = useState("");
   const [supContact, setSupContact] = useState("");
+
+  // Edit Supplier Form
+  const [editingSupplier, setEditingSupplier] = useState<any | null>(null);
+  const [editSupName, setEditSupName] = useState("");
+  const [editSupItems, setEditSupItems] = useState("");
+  const [editSupContact, setEditSupContact] = useState("");
 
   // New Purchase Form
   const [purSupplierId, setPurSupplierId] = useState("");
@@ -67,13 +88,13 @@ export default function ComprasPage() {
   async function loadData() {
     try {
       setLoading(true);
-      const sups = await getSuppliers();
+      const [sups, purs, models] = await Promise.all([
+        getSuppliers(),
+        getPurchasesData(),
+        getInventoryModels(),
+      ]);
       setSuppliersList(sups);
-      
-      const purs = await getPurchasesData();
       setPurchasesList(purs);
-
-      const models = await getInventoryModels();
       setModelsList(models);
 
       // set default selected items if lists loaded
@@ -96,22 +117,24 @@ export default function ComprasPage() {
     }
   }
 
+  const canManage = user?.role === "admin" || user?.role === "usuario";
+
   useEffect(() => {
-    if (user?.role === "admin") {
+    if (canManage) {
       loadData();
       return;
     }
 
     setLoading(false);
-  }, [user?.role]);
+  }, [canManage]);
 
-  if (user && user.role !== "admin") {
+  if (user && !canManage) {
     return (
       <div className="access-state-card animate-pop-in" style={{ marginTop: 40 }}>
         <div className="access-state-icon" aria-hidden="true">!</div>
         <h2 className="state-title">Acceso no autorizado</h2>
         <p className="state-copy">
-          Solo administraci&oacute;n puede consultar compras, costos y recepciones de mercanc&iacute;a.
+          No tienes acceso al m&oacute;dulo de compras.
         </p>
       </div>
     );
@@ -173,6 +196,43 @@ export default function ComprasPage() {
     const created = freshSuppliers.find((supplier: any) => supplier.name.toLowerCase() === name.toLowerCase());
     if (created) {
       setPurSupplierId(String(created.id));
+    }
+  }
+
+  function openEditSupplier(s: any) {
+    setErrorMsg("");
+    setSuccessMsg("");
+    setEditingSupplier(s);
+    setEditSupName(s.name || "");
+    setEditSupItems(s.items || "");
+    setEditSupContact(s.contact || "");
+  }
+
+  async function handleUpdateSupplier(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingSupplier || !editSupName) return;
+    setSubmitting(true);
+    const res = await updateSupplierAction(editingSupplier.id, editSupName, editSupItems, editSupContact);
+    setSubmitting(false);
+    if (res.success) {
+      setEditingSupplier(null);
+      loadData();
+      setSuccessMsg("Proveedor actualizado correctamente.");
+    } else {
+      setErrorMsg(res.error || "Error al actualizar proveedor");
+    }
+  }
+
+  async function handleDeleteSupplier(s: any) {
+    if (!window.confirm(`¿Eliminar el proveedor "${s.name}"? Esta acción no se puede deshacer.`)) return;
+    setSubmitting(true);
+    const res = await deleteSupplierAction(s.id);
+    setSubmitting(false);
+    if (res.success) {
+      loadData();
+      setSuccessMsg("Proveedor eliminado.");
+    } else {
+      setErrorMsg(res.error || "No se pudo eliminar el proveedor.");
     }
   }
 
@@ -244,11 +304,13 @@ export default function ComprasPage() {
     }
   }
 
-  async function handleReceivePurchase(purchaseId: number) {
-    if (!confirm("¿Está seguro de que desea marcar esta compra como RECIBIDA? Esto incrementará el stock de sus SKUs y actualizará el costo promedio ponderado.")) return;
+  async function handleReceivePurchase() {
+    if (!purchaseToReceive) return;
     try {
-      const res = await receivePurchase(purchaseId);
+      setSubmitting(true);
+      const res = await receivePurchase(purchaseToReceive.id);
       if (res.success) {
+        setPurchaseToReceive(null);
         loadData();
         setSuccessMsg("Compra recibida y stock actualizado correctamente.");
       } else {
@@ -257,6 +319,53 @@ export default function ComprasPage() {
     } catch (e) {
       console.error(e);
       setErrorMsg("Error al recibir compra.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function openPartialReceive(p: any) {
+    setErrorMsg("");
+    const init: Record<number, string> = {};
+    for (const it of p.items) {
+      const pending = it.quantity - (it.receivedQuantity || 0);
+      init[it.id] = String(pending > 0 ? pending : 0);
+    }
+    setPartialQty(init);
+    setPartialPurchase(p);
+  }
+
+  async function handlePartialReceive() {
+    if (!partialPurchase) return;
+    const receipts = Object.entries(partialQty)
+      .map(([itemId, q]) => ({ itemId: Number(itemId), quantity: parseInt(q) || 0 }))
+      .filter((r) => r.quantity > 0);
+    if (receipts.length === 0) {
+      setErrorMsg("Indique al menos una cantidad a recibir.");
+      return;
+    }
+    setSubmitting(true);
+    const res = await receivePurchaseItemsAction(partialPurchase.id, receipts);
+    setSubmitting(false);
+    if (res.success) {
+      setPartialPurchase(null);
+      loadData();
+      setSuccessMsg("Recepción parcial registrada y stock actualizado.");
+    } else {
+      setErrorMsg(res.error || "No se pudo registrar la recepción parcial.");
+    }
+  }
+
+  async function handleDeletePurchase(p: any) {
+    if (!window.confirm(`¿Eliminar la compra del ${p.date} (${p.supplierName})? Esta acción no se puede deshacer.`)) return;
+    setSubmitting(true);
+    const res = await deletePurchaseAction(p.id);
+    setSubmitting(false);
+    if (res.success) {
+      loadData();
+      setSuccessMsg("Compra eliminada.");
+    } else {
+      setErrorMsg(res.error || "No se pudo eliminar la compra.");
     }
   }
 
@@ -350,15 +459,34 @@ export default function ComprasPage() {
                 <span style={{ fontSize: "var(--text-base2)", fontWeight: 600 }}>{formatUSD(p.totalCost)}</span>
                 <span style={{ textAlign: "right", display: "flex", justifyContent: "flex-end", gap: 8, alignItems: "center" }}>
                   {p.status !== "recibida" && (
-                    <button
-                      className="btn btn-secondary btn-xs"
-                      onClick={() => handleReceivePurchase(p.id)}
-                      style={{ fontSize: "11px", padding: "4px 8px", borderRadius: "5px" }}
-                    >
-                      Recibir
-                    </button>
+                    <>
+                      <button
+                        className="btn btn-secondary btn-xs"
+                        onClick={() => setPurchaseToReceive({ id: p.id, number: p.number })}
+                        style={{ fontSize: "11px", padding: "4px 8px", borderRadius: "5px" }}
+                      >
+                        Recibir
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-xs"
+                        onClick={() => openPartialReceive(p)}
+                        style={{ fontSize: "11px", padding: "4px 8px", borderRadius: "5px" }}
+                      >
+                        Parcial
+                      </button>
+                      {canManage && p.status !== "parcial" && (
+                        <button
+                          className="icon-btn icon-btn-danger"
+                          title="Eliminar compra"
+                          aria-label="Eliminar compra"
+                          onClick={() => handleDeletePurchase(p)}
+                        >
+                          {trashIcon}
+                        </button>
+                      )}
+                    </>
                   )}
-                  <span className={estadoBadge(p.status)}>{p.status === "recibida" ? "Recibido" : p.status === "en_transito" ? "En tránsito" : "Borrador"}</span>
+                  <span className={estadoBadge(p.status)}>{estadoLabel(p.status)}</span>
                 </span>
               </div>
             );
@@ -370,10 +498,31 @@ export default function ComprasPage() {
         <div className="card" style={{ borderRadius: "var(--radius-5xl)", padding: 20, height: "max-content" }}>
           <div className="section-label" style={{ marginBottom: 14 }}>Proveedores</div>
           {suppliersList.map((s) => (
-            <div key={s.id} style={{ padding: "12px 0", borderTop: "1px solid var(--border-light)" }}>
-              <div style={{ fontSize: "var(--text-md)", fontWeight: 600 }}>{s.name}</div>
-              <div style={{ fontSize: "var(--text-sm2)", color: "var(--text-muted)", marginTop: 1 }}>{s.items || "Sin items configurados"}</div>
-              <div className="font-mono" style={{ fontSize: "var(--text-sm)", color: "var(--text-muted)", marginTop: 3 }}>{s.contact || "Sin teléfono"}</div>
+            <div key={s.id} style={{ padding: "12px 0", borderTop: "1px solid var(--border-light)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: "var(--text-md)", fontWeight: 600 }}>{s.name}</div>
+                <div style={{ fontSize: "var(--text-sm2)", color: "var(--text-muted)", marginTop: 1 }}>{s.items || "Sin items configurados"}</div>
+                <div className="font-mono" style={{ fontSize: "var(--text-sm)", color: "var(--text-muted)", marginTop: 3 }}>{s.contact || "Sin teléfono"}</div>
+              </div>
+              {canManage && (
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+                  <button
+                    className="btn btn-secondary btn-xs"
+                    style={{ fontSize: "11px", padding: "4px 8px", borderRadius: "5px" }}
+                    onClick={() => openEditSupplier(s)}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    className="icon-btn icon-btn-danger"
+                    title="Eliminar proveedor"
+                    aria-label="Eliminar proveedor"
+                    onClick={() => handleDeleteSupplier(s)}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" /></svg>
+                  </button>
+                </div>
+              )}
             </div>
           ))}
           <button className="btn btn-secondary btn-block" style={{ marginTop: 14 }} onClick={() => { setErrorMsg(""); setShowSupplierModal(true); }}>
@@ -391,7 +540,7 @@ export default function ComprasPage() {
               <button className="modal-close" onClick={() => setShowSupplierModal(false)}>×</button>
             </div>
             <form onSubmit={handleCreateSupplier}>
-              {errorMsg && <div className="alert-banner alert-banner-danger" style={{ marginBottom: 14 }}><p>{errorMsg}</p></div>}
+
               
               <div style={{ marginBottom: 14 }}>
                 <label className="input-label">Nombre de la Empresa</label>
@@ -405,9 +554,47 @@ export default function ComprasPage() {
                 <label className="input-label">Teléfono de contacto</label>
                 <input className="input" type="text" placeholder="+58 424-555-5555" value={supContact} onChange={(e) => setSupContact(e.target.value)} />
               </div>
-              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowSupplierModal(false)}>Cancelar</button>
-                <button type="submit" className="btn btn-primary" disabled={submitting}>Guardar Proveedor</button>
+              <div className="modal-footer-sticky">
+                {errorMsg && <div className="alert-banner alert-banner-danger" style={{ marginBottom: 0 }}><p>{errorMsg}</p></div>}
+                <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowSupplierModal(false)}>Cancelar</button>
+                  <button type="submit" className="btn btn-primary" disabled={submitting}>Guardar Proveedor</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- EDIT SUPPLIER MODAL --- */}
+      {editingSupplier && (
+        <div className="modal-backdrop">
+          <div className="modal" style={{ maxWidth: 400 }}>
+            <div className="modal-header">
+              <h2>Editar Proveedor</h2>
+              <button className="modal-close" onClick={() => setEditingSupplier(null)}>×</button>
+            </div>
+            <form onSubmit={handleUpdateSupplier}>
+
+
+              <div style={{ marginBottom: 14 }}>
+                <label className="input-label">Nombre de la Empresa</label>
+                <input className="input" type="text" placeholder="TexTina Imports C.A." value={editSupName} onChange={(e) => setEditSupName(e.target.value)} required />
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label className="input-label">Artículos provistos</label>
+                <input className="input" type="text" placeholder="Scrubs · Gorros quirúrgicos" value={editSupItems} onChange={(e) => setEditSupItems(e.target.value)} />
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <label className="input-label">Teléfono de contacto</label>
+                <input className="input" type="text" placeholder="+58 424-555-5555" value={editSupContact} onChange={(e) => setEditSupContact(e.target.value)} />
+              </div>
+              <div className="modal-footer-sticky">
+                {errorMsg && <div className="alert-banner alert-banner-danger" style={{ marginBottom: 0 }}><p>{errorMsg}</p></div>}
+                <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setEditingSupplier(null)}>Cancelar</button>
+                  <button type="submit" className="btn btn-primary" disabled={submitting}>Guardar Cambios</button>
+                </div>
               </div>
             </form>
           </div>
@@ -423,7 +610,7 @@ export default function ComprasPage() {
               <button className="modal-close" onClick={() => setShowPurchaseModal(false)}>×</button>
             </div>
             <form onSubmit={handleCreatePurchase}>
-              {errorMsg && <div className="alert-banner alert-banner-danger" style={{ marginBottom: 14 }}><p>{errorMsg}</p></div>}
+
 
               <div className="grid-2" style={{ gap: 14, marginBottom: 14 }}>
                 <div>
@@ -524,11 +711,91 @@ export default function ComprasPage() {
                 )}
               </div>
 
-              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowPurchaseModal(false)}>Cancelar</button>
-                <button type="submit" className="btn btn-primary" disabled={submitting}>Cargar Compra</button>
+              <div className="modal-footer-sticky">
+                {errorMsg && <div className="alert-banner alert-banner-danger" style={{ marginBottom: 0 }}><p>{errorMsg}</p></div>}
+                <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowPurchaseModal(false)}>Cancelar</button>
+                  <button type="submit" className="btn btn-primary" disabled={submitting}>Cargar Compra</button>
+                </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {purchaseToReceive && (
+        <div className="modal-backdrop">
+          <div className="modal-content animate-pop-in" style={{ maxWidth: 480 }}>
+            <div className="modal-header">
+              <h4>Confirmar recepción</h4>
+              <button className="btn-close" onClick={() => setPurchaseToReceive(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="alert-banner alert-banner-warning" style={{ marginBottom: 14 }}>
+                <p>
+                  Estás por marcar la compra <strong>{purchaseToReceive.number || `#${purchaseToReceive.id}`}</strong> como recibida.
+                </p>
+              </div>
+              <p style={{ fontSize: "var(--text-md)", color: "var(--text-secondary)" }}>
+                Esta acción incrementa stock y recalcula el costo promedio ponderado de los SKUs involucrados.
+              </p>
+            </div>
+            <div className="modal-footer" style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setPurchaseToReceive(null)}>
+                Cancelar
+              </button>
+              <button type="button" className="btn btn-primary" disabled={submitting} onClick={handleReceivePurchase}>
+                {submitting ? "Procesando..." : "Sí, recibir compra"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {partialPurchase && (
+        <div className="modal-backdrop">
+          <div className="modal-content animate-pop-in" style={{ maxWidth: 520 }}>
+            <div className="modal-header">
+              <h4>Recepción parcial</h4>
+              <button className="btn-close" onClick={() => setPartialPurchase(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              {errorMsg && <div className="alert-banner alert-banner-danger" style={{ marginBottom: 14 }}><p>{errorMsg}</p></div>}
+              <p style={{ fontSize: "var(--text-md)", color: "var(--text-secondary)", marginBottom: 14 }}>
+                Indica cuántas unidades de cada ítem llegaron. El stock y el costo promedio se actualizan solo por lo recibido.
+              </p>
+              <div className="responsive-table-scroll">
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 0.8fr 0.8fr 1fr", gap: 10, minWidth: 420, fontSize: "11px", fontWeight: 600, textTransform: "uppercase", color: "var(--text-muted)", paddingBottom: 8, borderBottom: "1px solid var(--border-header)" }}>
+                  <span>SKU</span><span>Pedido</span><span>Recibido</span><span style={{ textAlign: "right" }}>Recibir ahora</span>
+                </div>
+                {partialPurchase.items.map((it: any) => {
+                  const pending = it.quantity - (it.receivedQuantity || 0);
+                  return (
+                    <div key={it.id} style={{ display: "grid", gridTemplateColumns: "2fr 0.8fr 0.8fr 1fr", gap: 10, minWidth: 420, alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--border-light)" }}>
+                      <span className="font-mono" style={{ fontSize: "var(--text-sm2)" }}>{it.compositeCode}</span>
+                      <span style={{ fontSize: "var(--text-sm2)" }}>{it.quantity}</span>
+                      <span style={{ fontSize: "var(--text-sm2)", color: "var(--text-muted)" }}>{it.receivedQuantity || 0}</span>
+                      <input
+                        className="input"
+                        type="number"
+                        min="0"
+                        max={pending}
+                        value={partialQty[it.id] ?? ""}
+                        onChange={(e) => setPartialQty((prev) => ({ ...prev, [it.id]: e.target.value }))}
+                        style={{ textAlign: "right", padding: "6px 8px" }}
+                        disabled={pending <= 0}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="modal-footer" style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setPartialPurchase(null)}>Cancelar</button>
+              <button type="button" className="btn btn-primary" disabled={submitting} onClick={handlePartialReceive}>
+                {submitting ? "Procesando..." : "Registrar recepción"}
+              </button>
+            </div>
           </div>
         </div>
       )}

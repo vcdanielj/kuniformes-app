@@ -9,10 +9,15 @@ import {
   getConfigData,
   createSaleOrQuote,
   convertQuoteToSaleAction,
+  anularQuoteAction,
+  voidSaleAction,
+  deleteQuoteAction,
 } from "@/lib/db/actions";
 import { formatBs, formatRate, formatUSD } from "@/lib/utils";
 import { SETTINGS_KEYS, SYSTEM_DEFAULTS } from "@/lib/app-config";
 import { SearchCreateSelect, type SearchCreateOption } from "@/components/ui/SearchCreateSelect";
+import { QuickCreateModal } from "@/components/ui/QuickCreateModal";
+import { useUser } from "../UserContext";
 
 type FxSource = "paralelo" | "bcv" | "manual";
 
@@ -32,6 +37,15 @@ function isBolivarCurrency(currency: string): boolean {
   return normalized === "BS" || normalized === "VES";
 }
 
+// A sale may be registered when the amount paid is within ±3% of the total.
+// This absorbs the small rounding gaps that appear when converting Bs payments
+// to USD at the day's rate, so cashiers aren't blocked over a few cents/bolívares.
+const PAYMENT_TOLERANCE_PCT = 0.03;
+function paymentWithinTolerance(totalUsd: number, remainingUsd: number): boolean {
+  const allowed = Math.max(Math.abs(totalUsd) * PAYMENT_TOLERANCE_PCT, 0.01);
+  return Math.abs(remainingUsd) <= allowed;
+}
+
 function payBadge(m: string): string {
   if (m === "Zelle" || m === "Binance" || m === "Efectivo") return "badge badge-neutral";
   if (m === "Bs") return "badge badge-neutral";
@@ -44,6 +58,7 @@ function estadoBadge(e: string): string {
   if (e === "Cotización") return "badge badge-warning";
   if (e === "Convertida") return "badge badge-info";
   if (e === "Pendiente") return "badge badge-warning";
+  if (e === "Vencida") return "badge badge-danger";
   if (e === "Anulada") return "badge badge-danger";
   return "badge badge-neutral";
 }
@@ -61,6 +76,7 @@ const trashIcon = (
 );
 
 export default function VentasPage() {
+  const user = useUser();
   const [loading, setLoading] = useState(true);
   const [salesList, setSalesList] = useState<any[]>([]);
   const [customersList, setCustomersList] = useState<any[]>([]);
@@ -74,6 +90,8 @@ export default function VentasPage() {
   // Document Form State
   const [docType, setDocType] = useState<"venta" | "cotizacion">("venta");
   const [docCustomerId, setDocCustomerId] = useState("");
+  const [showCustomerCreate, setShowCustomerCreate] = useState(false);
+  const [customerCreatePrefill, setCustomerCreatePrefill] = useState("");
   const [docDate, setDocDate] = useState(new Date().toISOString().slice(0, 10));
   const [docRateSource, setDocRateSource] = useState<FxSource>("paralelo");
   const [docRateVal, setDocRateVal] = useState(String(SYSTEM_DEFAULTS.rates.paralelo));
@@ -91,6 +109,7 @@ export default function VentasPage() {
 
   // Payment method inputs (Venta only)
   const [purPayments, setPurPayments] = useState<PaymentEntry[]>([]);
+  const [creditToApply, setCreditToApply] = useState("0");
   const [payMethodId, setPayMethodId] = useState("");
   const [payAmountOriginal, setPayAmountOriginal] = useState("");
   const [payRef, setPayRef] = useState("");
@@ -102,19 +121,18 @@ export default function VentasPage() {
   async function loadData() {
     try {
       setLoading(true);
-      const docs = await getSalesAndQuotesData();
+      const [docs, custs, models, config] = await Promise.all([
+        getSalesAndQuotesData(),
+        getCustomers(),
+        getInventoryModels(),
+        getConfigData(),
+      ]);
       setSalesList(docs);
-
-      const custs = await getCustomers();
       setCustomersList(custs);
-
-      const models = await getInventoryModels();
       setModelsList(models);
       if (models.length > 0) {
         setSelectedModelId(models[0].id);
       }
-
-      const config = await getConfigData();
       setConfigDb(config);
       
       const tasaP =
@@ -268,7 +286,7 @@ export default function VentasPage() {
   function handleAddToCart() {
     const qty = parseInt(itemQty);
     const price = parseFloat(itemPrice);
-    if (isNaN(qty) || qty <= 0 || isNaN(price) || price <= 0) return;
+    if (isNaN(qty) || qty <= 0 || isNaN(price) || price < 0) return;
 
     // Find the correct SKU record
     const targetSku = activeSkusForColor.find((s: any) => {
@@ -372,26 +390,25 @@ export default function VentasPage() {
   }
 
   const paymentsTotalUsd = purPayments.reduce((sum, p) => sum + p.amountUsd, 0);
-  const paymentRemainingUsd = cartTotalUsd - paymentsTotalUsd;
+  const selectedSaleCustomer = customersList.find((c) => String(c.id) === String(docCustomerId));
+  const availableCredit = Number(selectedSaleCustomer?.creditBalance) || 0;
+  const appliedCredit = Math.min(
+    Math.max(parseFloat(creditToApply) || 0, 0),
+    availableCredit,
+    Math.max(0, cartTotalUsd - paymentsTotalUsd)
+  );
+  const paymentRemainingUsd = cartTotalUsd - paymentsTotalUsd - appliedCredit;
 
-  async function handleCreateCustomerFromSearch(query: string) {
-    const name = query.trim();
-    if (!name) return;
-    setSubmitting(true);
-    const res = await createCustomerAction(name, "");
-    const freshCusts = await getCustomers();
-    setCustomersList(freshCusts);
-    setSubmitting(false);
-
+  // Full "create customer" via QuickCreateModal (name + phone + notes), instead
+  // of creating an incomplete record from just the typed name.
+  async function handleQuickCreateCustomer(values: Record<string, string>) {
+    const res = await createCustomerAction((values.name || "").trim(), (values.phone || "").trim(), values.notes || "");
     if (res.success) {
-      const created = freshCusts.find((customer: any) => customer.name.toLowerCase() === name.toLowerCase());
-      if (created) {
-        setDocCustomerId(String(created.id));
-      }
-      return;
+      const fresh = await getCustomers();
+      setCustomersList(fresh);
+      if (res.id != null) setDocCustomerId(String(res.id));
     }
-
-    throw new Error(res.error || "Error al crear cliente.");
+    return res;
   }
 
   // Document Submission
@@ -403,9 +420,9 @@ export default function VentasPage() {
     }
 
     if (docType === "venta") {
-      // Validate payment matches total
-      if (Math.abs(paymentRemainingUsd) > 0.01) {
-        setErrorMsg(`Los pagos agregados (${formatUSD(paymentsTotalUsd)}) deben coincidir exactamente con el total de la venta (${formatUSD(cartTotalUsd)}).`);
+      // Validate payment covers the total within the ±3% tolerance.
+      if (!paymentWithinTolerance(cartTotalUsd, paymentRemainingUsd)) {
+        setErrorMsg(`Los pagos agregados (${formatUSD(paymentsTotalUsd)}) deben cubrir el total de la venta (${formatUSD(cartTotalUsd)}) con un margen máximo de ±3%.`);
         return;
       }
     }
@@ -440,6 +457,7 @@ export default function VentasPage() {
         rateSource: x.rateSource,
         reference: x.reference,
       })) : undefined,
+      creditApplied: docType === "venta" && appliedCredit > 0 ? appliedCredit : undefined,
     });
     setSubmitting(false);
 
@@ -447,6 +465,7 @@ export default function VentasPage() {
       setShowDocModal(false);
       setDocCart([]);
       setPurPayments([]);
+      setCreditToApply("0");
       setDocNotes("");
       resetPaymentDraft();
       loadData();
@@ -462,8 +481,8 @@ export default function VentasPage() {
     if (!showConvertModal) return;
 
     const remaining = showConvertModal.totalUsd - paymentsTotalUsd;
-    if (Math.abs(remaining) > 0.01) {
-      setErrorMsg(`Los pagos agregados (${formatUSD(paymentsTotalUsd)}) deben coincidir exactamente con el total de la cotización (${formatUSD(showConvertModal.totalUsd)}).`);
+    if (!paymentWithinTolerance(showConvertModal.totalUsd, remaining)) {
+      setErrorMsg(`Los pagos agregados (${formatUSD(paymentsTotalUsd)}) deben cubrir el total de la cotización (${formatUSD(showConvertModal.totalUsd)}) con un margen máximo de ±3%.`);
       return;
     }
 
@@ -499,6 +518,42 @@ export default function VentasPage() {
       setSuccessMsg("Cotización convertida a venta correctamente.");
     } else {
       setErrorMsg(res.error || "Error al convertir cotización");
+    }
+  }
+
+  async function handleAnularQuote(quoteId: number, quoteNumber: string) {
+    if (!window.confirm(`¿Anular la cotización ${quoteNumber}? No podrá convertirse en venta.`)) return;
+    setErrorMsg("");
+    const res = await anularQuoteAction(quoteId);
+    if (res.success) {
+      loadData();
+      setSuccessMsg(`Cotización ${quoteNumber} anulada.`);
+    } else {
+      setErrorMsg(res.error || "Error al anular cotización");
+    }
+  }
+
+  async function handleDeleteQuote(quoteId: number, quoteNumber: string) {
+    if (!window.confirm(`¿Eliminar la cotización ${quoteNumber}? Esta acción no se puede deshacer.`)) return;
+    setErrorMsg("");
+    const res = await deleteQuoteAction(quoteId);
+    if (res.success) {
+      loadData();
+      setSuccessMsg(`Cotización ${quoteNumber} eliminada.`);
+    } else {
+      setErrorMsg(res.error || "Error al eliminar cotización");
+    }
+  }
+
+  async function handleVoidSale(saleId: number, saleNumber: string) {
+    if (!window.confirm(`¿Anular la venta ${saleNumber}? Se repondrá el stock de sus artículos. Esta acción no se puede deshacer.`)) return;
+    setErrorMsg("");
+    const res = await voidSaleAction(saleId);
+    if (res.success) {
+      loadData();
+      setSuccessMsg(`Venta ${saleNumber} anulada y stock repuesto.`);
+    } else {
+      setErrorMsg(res.error || "Error al anular venta");
     }
   }
 
@@ -618,12 +673,41 @@ export default function VentasPage() {
             <span style={{ fontSize: "var(--text-md2)", fontWeight: 700, textAlign: "right" }}>{formatUSD(v.totalUsd)}</span>
             <span style={{ textAlign: "right", display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
               {v.type === "cotizacion" && v.rawStatus === "abierta" && (
+                <>
+                  <button
+                    className="btn btn-secondary btn-xs"
+                    style={{ fontSize: "10.5px", padding: "4px 8px" }}
+                    onClick={() => openConvertQuoteModal(v)}
+                  >
+                    Cobrar
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-xs"
+                    style={{ fontSize: "10.5px", padding: "4px 8px", color: "var(--danger)" }}
+                    onClick={() => handleAnularQuote(v.id, v.number)}
+                  >
+                    Anular
+                  </button>
+                </>
+              )}
+              {v.type === "cotizacion" && v.rawStatus !== "convertida" && user?.role === "admin" && (
+                <button
+                  type="button"
+                  className="icon-btn icon-btn-danger"
+                  title="Eliminar cotización"
+                  aria-label="Eliminar cotización"
+                  onClick={() => handleDeleteQuote(v.id, v.number)}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" /></svg>
+                </button>
+              )}
+              {v.type === "venta" && v.rawStatus === "pagada" && user?.role === "admin" && (
                 <button
                   className="btn btn-secondary btn-xs"
-                  style={{ fontSize: "10.5px", padding: "4px 8px" }}
-                  onClick={() => openConvertQuoteModal(v)}
+                  style={{ fontSize: "10.5px", padding: "4px 8px", color: "var(--danger)" }}
+                  onClick={() => handleVoidSale(v.id, v.number)}
                 >
-                  Cobrar
+                  Anular
                 </button>
               )}
               <span className={estadoBadge(v.status)}>{v.status}</span>
@@ -638,54 +722,41 @@ export default function VentasPage() {
         <div className="modal-backdrop">
           <div className="modal sales-modal">
             <div className="modal-header">
-              <h2>Registrar Documento Comercial</h2>
+              <div className="sales-modal-copy">
+                <h2>Registrar Documento Comercial</h2>
+                <p>Prepara la venta o cotización con una composición más visual, rápida y clara para caja.</p>
+              </div>
               <button className="modal-close" onClick={() => setShowDocModal(false)}>×</button>
             </div>
             <form onSubmit={handleSubmitDocument}>
-              {errorMsg && <div className="alert-banner alert-banner-danger" style={{ marginBottom: 14 }}><p>{errorMsg}</p></div>}
+
 
               {/* Document Type Toggle */}
-              <div style={{ marginBottom: 14 }}>
+              <div className="sales-section">
                 <label className="input-label" style={{ marginBottom: 4 }}>Tipo de documento</label>
-                <div className="range-selector" style={{ width: "max-content" }}>
+                <div className="range-selector is-scrollable" style={{ maxWidth: "100%" }}>
                   <button type="button" className={`range-btn ${docType === "venta" ? "active" : ""}`} onClick={() => setDocType("venta")}>Nota de Entrega (Venta)</button>
                   <button type="button" className={`range-btn ${docType === "cotizacion" ? "active" : ""}`} onClick={() => { setDocType("cotizacion"); setPurPayments([]); resetPaymentDraft(); }}>Cotización (No descuenta stock)</button>
                 </div>
               </div>
 
-              <div style={{ marginBottom: 14 }}>
+              <div className="sales-section">
                 <SearchCreateSelect
                   label="Cliente (CRM)"
                   value={docCustomerId}
                   options={customerOptions}
                   onChange={setDocCustomerId}
-                  onCreate={handleCreateCustomerFromSearch}
+                  onRequestCreate={(query) => { setCustomerCreatePrefill(query); setShowCustomerCreate(true); }}
+                  createNewLabel="+ Crear cliente nuevo…"
                   allowClear
                   placeholder="Buscar cliente por nombre o telefono"
-                  createLabel={(query) => `+ Crear cliente "${query}"`}
                   emptyMessage="No hay clientes con ese criterio."
                 />
               </div>
 
-              <div className="grid-2" style={{ gap: 14, marginBottom: 14 }}>
-                <div>
-                  <label className="input-label">Fecha</label>
-                  <input className="input" type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} required />
-                </div>
-                <div>
-                  <label className="input-label">Tasa de cambio aplicada</label>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <select className="input" style={{ width: "110px", flex: "none" }} value={docRateSource} onChange={(e) => handleRateSourceChange(e.target.value as FxSource, "document")}>
-                      <option value="paralelo">Paralelo</option>
-                      <option value="bcv">BCV</option>
-                      <option value="manual">Manual</option>
-                    </select>
-                    <input className="input" type="number" step="0.01" value={docRateVal} onChange={(e) => setDocRateVal(e.target.value)} disabled={docRateSource !== "manual"} required />
-                  </div>
-                  <div style={{ fontSize: "var(--text-xs2)", color: "var(--text-muted)", marginTop: 4 }}>
-                    La venta se consolida en USD y guarda esta tasa exacta para el histórico.
-                  </div>
-                </div>
+              <div style={{ marginBottom: 14 }}>
+                <label className="input-label">Fecha</label>
+                <input className="input" type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} required style={{ maxWidth: 220 }} />
               </div>
 
               <div className="divider" style={{ margin: "16px 0" }} />
@@ -693,6 +764,7 @@ export default function VentasPage() {
               <div className="sales-composer" style={{ marginBottom: 14 }}>
                 <div className="sales-panel">
                   <div className="sales-panel-title">Agregar artículo</div>
+                  <div className="sales-panel-copy">Selecciona modelo, color y talla para agregarlo al carrito sin escribir códigos manualmente.</div>
                   <div style={{ marginBottom: 14 }}>
                     <SearchCreateSelect
                       label="Producto"
@@ -765,7 +837,7 @@ export default function VentasPage() {
                     </div>
                     <div>
                       <label className="input-label" style={{ marginBottom: 4 }}>Precio unitario</label>
-                      <input className="input" type="number" min="0.5" step="0.5" value={itemPrice} onChange={(e) => setItemPrice(e.target.value)} />
+                      <input className="input" type="number" min="0" step="0.01" value={itemPrice} onChange={(e) => setItemPrice(e.target.value)} />
                     </div>
                   </div>
                   <button type="button" className="btn btn-primary" style={{ marginTop: 14, width: "100%" }} onClick={handleAddToCart}>
@@ -775,6 +847,7 @@ export default function VentasPage() {
 
                 <div className="sales-panel">
                   <div className="sales-panel-title">Resumen rápido</div>
+                  <div className="sales-panel-copy">Consulta disponibilidad, precio base y total acumulado antes de emitir el documento.</div>
                   <div className="sales-kpi-strip">
                     <div className="sales-kpi-card">
                       <div className="sales-kpi-card-label">Stock actual</div>
@@ -795,18 +868,33 @@ export default function VentasPage() {
                   <div style={{ marginTop: 16 }}>
                     <label className="input-label" style={{ marginBottom: 6 }}>Artículos agregados</label>
                     {docCart.length === 0 ? (
-                      <div style={{ fontSize: "var(--text-base)", color: "var(--text-muted)", padding: "12px 0" }}>
+                      <div className="sales-helper" style={{ padding: "12px 0" }}>
                         Carrito vacío.
                       </div>
                     ) : (
-                      <div style={{ maxHeight: 220, overflowY: "auto" }}>
+                      <div className="sales-cart-list">
                         {docCart.map((item, idx) => (
-                          <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderBottom: "1px solid var(--border-light)", background: "#fff", borderRadius: 8, marginBottom: 6 }}>
+                          <div key={idx} className="sales-cart-row">
                             <div>
-                              <div className="font-mono" style={{ fontSize: "var(--text-sm2)", fontWeight: 600 }}>{item.code}</div>
-                              <div style={{ fontSize: "var(--text-sm2)", color: "var(--text-muted)" }}>{item.quantity}u · {formatUSD(item.unitPrice)} · {item.stock} disp</div>
+                              <div className="font-mono sales-cart-code">{item.code}</div>
+                              <div className="sales-cart-meta">{item.quantity}u · {item.stock} disp</div>
                             </div>
                             <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                              <input
+                                className="input"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.unitPrice}
+                                onChange={(e) => {
+                                  const next = parseFloat(e.target.value);
+                                  const updated = [...docCart];
+                                  updated[idx].unitPrice = Number.isFinite(next) && next >= 0 ? next : 0;
+                                  setDocCart(updated);
+                                }}
+                                style={{ width: 90, padding: "6px 8px" }}
+                                aria-label={`Precio unitario ${item.code}`}
+                              />
                               <span style={{ fontSize: "var(--text-md)", fontWeight: 700 }}>{formatUSD(item.quantity * item.unitPrice)}</span>
                               <button type="button" className="btn-icon" style={{ color: "var(--danger)", padding: 4 }} onClick={() => handleRemoveFromCart(idx)}>
                                 {trashIcon}
@@ -817,14 +905,14 @@ export default function VentasPage() {
                       </div>
                     )}
 
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 12 }}>
+                    <div className="sales-total-strip">
                       <div>
-                        <div style={{ fontSize: "var(--text-xs2)", color: "var(--text-muted)" }}>Total en Bolívares</div>
-                        <div className="font-mono" style={{ fontSize: "var(--text-lg)", fontWeight: 700 }}>{formatBs(cartTotalBs)}</div>
+                        <div className="label">Total en Bolívares</div>
+                        <div className="font-mono value-mono">{formatBs(cartTotalBs)}</div>
                       </div>
                       <div style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: "var(--text-xs2)", color: "var(--text-muted)" }}>Total USD</div>
-                        <div style={{ fontSize: "var(--text-2xl)", fontWeight: 800 }}>{formatUSD(cartTotalUsd)}</div>
+                        <div className="label">Total USD</div>
+                        <div className="value-strong">{formatUSD(cartTotalUsd)}</div>
                       </div>
                     </div>
                   </div>
@@ -833,57 +921,108 @@ export default function VentasPage() {
 
               {/* Payments Section (Venta only) */}
               {docType === "venta" && (
-                <div style={{ background: "var(--bg-subtle)", padding: 14, borderRadius: "var(--radius-3xl)", marginBottom: 20 }}>
-                  <h4 style={{ fontSize: "var(--text-base2)", fontWeight: 700, marginBottom: 8 }}>Registrar Pagos (División Mixta)</h4>
+                <div className="sales-payment-section">
+                  <div className="sales-payment-header">
+                    <h4>Registrar Pagos (División Mixta)</h4>
+                  </div>
                   
                   <div className="responsive-table-scroll">
-                  <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1.5fr auto", gap: 10, alignItems: "flex-end", marginBottom: 12, minWidth: 620 }}>
-                    <div>
-                      <SearchCreateSelect
-                        label="Método de pago"
-                        value={payMethodId}
-                        options={paymentMethodOptions}
-                        onChange={setPayMethodId}
-                        placeholder="Buscar método"
-                        emptyMessage="Sin métodos activos."
-                      />
+                    <div className="sales-payment-grid">
+                      <div>
+                        <SearchCreateSelect
+                          label="Método de pago"
+                          value={payMethodId}
+                          options={paymentMethodOptions}
+                          onChange={setPayMethodId}
+                          placeholder="Buscar método"
+                          emptyMessage="Sin métodos activos."
+                        />
+                      </div>
+                      <div>
+                        <label className="input-label" style={{ marginBottom: 4 }}>
+                          {paymentUsesBolivares ? "Monto recibido (Bs)" : `Monto recibido (${selectedPaymentCurrency || "USD"})`}
+                        </label>
+                        <input className="input" type="number" min="0.1" step="0.01" value={payAmountOriginal} onChange={(e) => setPayAmountOriginal(e.target.value)} placeholder={paymentUsesBolivares ? "68650.00" : "86.00"} />
+                      </div>
+                      <div>
+                        <label className="input-label" style={{ marginBottom: 4 }}>Referencia / Operación</label>
+                        <input className="input" type="text" placeholder="Zelle ID, Binance hash, etc." value={payRef} onChange={(e) => setPayRef(e.target.value)} />
+                      </div>
+                      <button type="button" className="btn btn-secondary btn-sm" style={{ height: "40px" }} onClick={handleAddPayment}>
+                        Registrar
+                      </button>
                     </div>
-                    <div>
-                      <label className="input-label" style={{ marginBottom: 4 }}>
-                        {paymentUsesBolivares ? "Monto recibido (Bs)" : `Monto recibido (${selectedPaymentCurrency || "USD"})`}
-                      </label>
-                      <input className="input" type="number" min="0.1" step="0.01" value={payAmountOriginal} onChange={(e) => setPayAmountOriginal(e.target.value)} placeholder={paymentUsesBolivares ? "68650.00" : "86.00"} />
-                    </div>
-                    <div>
-                      <label className="input-label" style={{ marginBottom: 4 }}>Referencia / Operación</label>
-                      <input className="input" type="text" placeholder="Zelle ID, Binance hash, etc." value={payRef} onChange={(e) => setPayRef(e.target.value)} />
-                    </div>
-                    <button type="button" className="btn btn-secondary btn-sm" style={{ height: "40px" }} onClick={handleAddPayment}>
-                      Registrar
-                    </button>
-                  </div>
                   </div>
 
-                  <div style={{ fontSize: "var(--text-sm2)", color: "var(--text-muted)", marginBottom: 12 }}>
+                  {paymentUsesBolivares && (
+                    <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", marginTop: 10, padding: "12px 14px", background: "var(--warning-info-bg)", border: "1px solid var(--warning-info-border)", borderRadius: 10 }}>
+                      <div>
+                        <label className="input-label" style={{ marginBottom: 4 }}>Tasa de cambio (Bs/USD)</label>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <select className="input" style={{ flex: "0 1 110px", minWidth: 90 }} value={docRateSource} onChange={(e) => handleRateSourceChange(e.target.value as FxSource, "document")}>
+                            <option value="paralelo">Paralelo</option>
+                            <option value="bcv">BCV</option>
+                            <option value="manual">Manual</option>
+                          </select>
+                          <input className="input" type="number" step="0.01" min="0.01" required value={docRateVal} onChange={(e) => setDocRateVal(e.target.value)} disabled={docRateSource !== "manual"} style={{ flex: "1 1 130px" }} />
+                        </div>
+                      </div>
+                      <div className="sales-helper" style={{ flex: "1 1 200px", color: "var(--warning-info-text)" }}>
+                        Aplica a los pagos en bolívares. La venta se consolida en USD con esta tasa.
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="sales-payment-copy">
                     {paymentUsesBolivares
                       ? `Se convertirán ${payAmountOriginalNumber > 0 ? formatBs(payAmountOriginalNumber) : "los Bs ingresados"} a ${paymentPreviewUsd > 0 ? formatUSD(paymentPreviewUsd) : "$0,00"} usando tasa ${formatRate(activePaymentRate || 0)} (${activePaymentRateSource}).`
                       : `Los pagos en ${selectedPaymentCurrency || "USD"} se registran 1:1 en USD.`}
                   </div>
 
                   {/* Payments list summary */}
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                  <div className="sales-payment-chips">
                     {purPayments.map((p, idx) => (
-                      <span key={idx} className="badge badge-info" style={{ display: "flex", gap: 6, padding: "6px 10px", height: "auto", fontSize: "12px" }}>
+                      <span key={idx} className="sales-payment-chip">
                         {p.name}: {isBolivarCurrency(p.currency) ? `${formatBs(p.amountOriginal)} -> ${formatUSD(p.amountUsd)} @ ${formatRate(p.rateUsed)}` : formatUSD(p.amountUsd)} {p.reference ? `(ref: ${p.reference})` : ""}
                         <button type="button" style={{ background: "transparent", border: "none", color: "#fff", cursor: "pointer", fontWeight: 700 }} onClick={() => handleRemovePayment(idx)}>×</button>
                       </span>
                     ))}
                   </div>
 
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", fontWeight: 600 }}>
-                    <span style={{ color: "var(--text-secondary)" }}>Total Pagado: {formatUSD(paymentsTotalUsd)}</span>
-                    <span style={{ color: Math.abs(paymentRemainingUsd) < 0.01 ? "var(--success)" : "var(--danger)" }}>
-                      {Math.abs(paymentRemainingUsd) < 0.01 ? "Completado ✓" : `Restante por pagar: ${formatUSD(paymentRemainingUsd)}${docRateNumber > 0 ? ` / ${formatBs(paymentRemainingUsd * docRateNumber)}` : ""}`}
+                  {availableCredit > 0 && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--success-bg)", border: "1px solid var(--success)", borderRadius: 9, marginBottom: 10, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "var(--text-md)", color: "var(--success)", fontWeight: 600 }}>
+                        Saldo a favor disponible: {formatUSD(availableCredit)}
+                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
+                        <span style={{ fontSize: "var(--text-sm)", color: "var(--text-tertiary)" }}>Aplicar</span>
+                        <input
+                          className="input"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={creditToApply}
+                          onChange={(e) => setCreditToApply(e.target.value)}
+                          style={{ width: 110, padding: "6px 8px" }}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-xs"
+                          onClick={() => setCreditToApply(String(Math.min(availableCredit, Math.max(0, cartTotalUsd - paymentsTotalUsd)).toFixed(2)))}
+                        >
+                          Usar máx
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="sales-payment-status">
+                    <span style={{ color: "var(--text-secondary)" }}>
+                      Total Pagado: {formatUSD(paymentsTotalUsd)}
+                      {appliedCredit > 0 ? ` + ${formatUSD(appliedCredit)} saldo` : ""}
+                    </span>
+                    <span style={{ color: paymentWithinTolerance(cartTotalUsd, paymentRemainingUsd) ? "var(--success)" : "var(--danger)" }}>
+                      {paymentWithinTolerance(cartTotalUsd, paymentRemainingUsd) ? "Completado ✓" : `Restante por pagar: ${formatUSD(paymentRemainingUsd)}${docRateNumber > 0 ? ` / ${formatBs(paymentRemainingUsd * docRateNumber)}` : ""}`}
                     </span>
                   </div>
                 </div>
@@ -894,9 +1033,12 @@ export default function VentasPage() {
                 <input className="input" type="text" placeholder="Entregar en consultorio, retirar por tienda..." value={docNotes} onChange={(e) => setDocNotes(e.target.value)} />
               </div>
 
-              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowDocModal(false)}>Cancelar</button>
-                <button type="submit" className="btn btn-primary" disabled={submitting}>Emitir Documento</button>
+              <div className="modal-footer-sticky">
+                {errorMsg && <div className="alert-banner alert-banner-danger" style={{ marginBottom: 0 }}><p>{errorMsg}</p></div>}
+                <div className="sales-form-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowDocModal(false)}>Cancelar</button>
+                  <button type="submit" className="btn btn-primary" disabled={submitting}>Emitir Documento</button>
+                </div>
               </div>
             </form>
           </div>
@@ -906,24 +1048,27 @@ export default function VentasPage() {
       {/* --- COBRAR / CONVERTIR COTIZACION MODAL --- */}
       {showConvertModal && (
         <div className="modal-backdrop">
-          <div className="modal" style={{ maxWidth: 500 }}>
+          <div className="modal sales-convert-modal">
             <div className="modal-header">
-              <h2>Cobrar Cotización {showConvertModal.number}</h2>
+              <div className="sales-modal-copy">
+                <h2>Cobrar Cotización {showConvertModal.number}</h2>
+                <p>Confirma el pago final, fija la tasa aplicada y convierte la cotización en venta cerrada.</p>
+              </div>
               <button className="modal-close" onClick={() => setShowConvertModal(null)}>×</button>
             </div>
             <form onSubmit={handleConvertQuote}>
-              {errorMsg && <div className="alert-banner alert-banner-danger" style={{ marginBottom: 14 }}><p>{errorMsg}</p></div>}
+
               
-              <div style={{ marginBottom: 16 }}>
+              <div className="sales-convert-summary">
                 <div style={{ fontSize: "14px", color: "var(--text-secondary)" }}>Cliente: <strong>{showConvertModal.customerName}</strong></div>
                 <div style={{ fontSize: "14px", color: "var(--text-secondary)", marginTop: 4 }}>Monto total a cobrar: <strong style={{ fontSize: "18px", color: "#15151A" }}>{formatUSD(showConvertModal.totalUsd)}</strong></div>
                 <div style={{ fontSize: "14px", color: "var(--text-secondary)", marginTop: 4 }}>Equivalente: <strong>{formatBs(showConvertModal.totalUsd * convertRateNumber)}</strong></div>
               </div>
 
-              <div className="grid-2" style={{ gap: 14, marginBottom: 14 }}>
+              <div className="sales-rate-grid">
                 <div>
                   <label className="input-label">Tasa para cobrar esta venta</label>
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div className="sales-rate-inputs">
                     <select className="input" style={{ width: "110px", flex: "none" }} value={convertRateSource} onChange={(e) => handleRateSourceChange(e.target.value as FxSource, "conversion")}>
                       <option value="paralelo">Paralelo</option>
                       <option value="bcv">BCV</option>
@@ -932,17 +1077,19 @@ export default function VentasPage() {
                     <input className="input" type="number" step="0.01" value={convertRateVal} onChange={(e) => setConvertRateVal(e.target.value)} disabled={convertRateSource !== "manual"} required />
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "flex-end", fontSize: "var(--text-sm2)", color: "var(--text-muted)" }}>
+                <div className="sales-helper" style={{ display: "flex", alignItems: "flex-end" }}>
                   La venta final guarda la tasa aplicada al convertir la cotización.
                 </div>
               </div>
 
               {/* Payments Section */}
-              <div style={{ background: "var(--bg-subtle)", padding: 14, borderRadius: "var(--radius-3xl)", marginBottom: 20 }}>
-                <h4 style={{ fontSize: "var(--text-base2)", fontWeight: 700, marginBottom: 8 }}>Registrar Pagos</h4>
+              <div className="sales-payment-section">
+                <div className="sales-payment-header">
+                  <h4>Registrar Pagos</h4>
+                </div>
                 
                 <div className="responsive-table-scroll">
-                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1.2fr auto", gap: 10, alignItems: "flex-end", marginBottom: 12, minWidth: 580 }}>
+                <div className="sales-payment-grid">
                   <div>
                     <SearchCreateSelect
                       label="Método"
@@ -969,36 +1116,54 @@ export default function VentasPage() {
                 </div>
                 </div>
 
-                <div style={{ fontSize: "var(--text-sm2)", color: "var(--text-muted)", marginBottom: 12 }}>
+                <div className="sales-payment-copy">
                   {paymentUsesBolivares
                     ? `Conversión estimada: ${paymentPreviewUsd > 0 ? formatUSD(paymentPreviewUsd) : "$0,00"} con tasa ${formatRate(activePaymentRate || 0)} (${activePaymentRateSource}).`
                     : `Los pagos en ${selectedPaymentCurrency || "USD"} se registran 1:1 en USD.`}
                 </div>
 
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                <div className="sales-payment-chips">
                   {purPayments.map((p, idx) => (
-                    <span key={idx} className="badge badge-info" style={{ display: "flex", gap: 6, padding: "6px 10px", height: "auto", fontSize: "12px" }}>
+                    <span key={idx} className="sales-payment-chip">
                       {p.name}: {isBolivarCurrency(p.currency) ? `${formatBs(p.amountOriginal)} -> ${formatUSD(p.amountUsd)} @ ${formatRate(p.rateUsed)}` : formatUSD(p.amountUsd)}
                       <button type="button" style={{ background: "transparent", border: "none", color: "#fff", cursor: "pointer" }} onClick={() => handleRemovePayment(idx)}>×</button>
                     </span>
                   ))}
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", fontWeight: 600 }}>
+                <div className="sales-payment-status">
                   <span style={{ color: "var(--text-secondary)" }}>Total Pagado: {formatUSD(paymentsTotalUsd)}</span>
-                  <span style={{ color: Math.abs(showConvertModal.totalUsd - paymentsTotalUsd) < 0.01 ? "var(--success)" : "var(--danger)" }}>
-                    {Math.abs(showConvertModal.totalUsd - paymentsTotalUsd) < 0.01 ? "Completado ✓" : `Restante: ${formatUSD(showConvertModal.totalUsd - paymentsTotalUsd)}`}
+                  <span style={{ color: paymentWithinTolerance(showConvertModal.totalUsd, showConvertModal.totalUsd - paymentsTotalUsd) ? "var(--success)" : "var(--danger)" }}>
+                    {paymentWithinTolerance(showConvertModal.totalUsd, showConvertModal.totalUsd - paymentsTotalUsd) ? "Completado ✓" : `Restante: ${formatUSD(showConvertModal.totalUsd - paymentsTotalUsd)}`}
                   </span>
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowConvertModal(null)}>Cancelar</button>
-                <button type="submit" className="btn btn-primary" disabled={submitting}>Confirmar Venta</button>
+              <div className="modal-footer-sticky">
+                {errorMsg && <div className="alert-banner alert-banner-danger" style={{ marginBottom: 0 }}><p>{errorMsg}</p></div>}
+                <div className="sales-form-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowConvertModal(null)}>Cancelar</button>
+                  <button type="submit" className="btn btn-primary" disabled={submitting}>Confirmar Venta</button>
+                </div>
               </div>
             </form>
           </div>
         </div>
+      )}
+
+      {showCustomerCreate && (
+        <QuickCreateModal
+          title="Nuevo cliente"
+          fields={[
+            { key: "name", label: "Nombre", required: true },
+            { key: "phone", label: "Teléfono", placeholder: "0414-000 0000" },
+            { key: "notes", label: "Notas", placeholder: "Talla habitual, preferencias…" },
+          ]}
+          initial={{ name: customerCreatePrefill }}
+          submitLabel="Crear cliente"
+          onClose={() => setShowCustomerCreate(false)}
+          onSubmit={handleQuickCreateCustomer}
+        />
       )}
     </div>
   );

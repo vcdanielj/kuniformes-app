@@ -4,9 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { useState, useEffect } from "react";
-import { getConfigData, getInventoryModels, getConsigneesData } from "@/lib/db/actions";
+import { getRatesForDisplayAction } from "@/lib/db/actions";
 import { logoutAction } from "@/lib/auth/actions";
-import { canAccessNavItem, SETTINGS_KEYS, SYSTEM_DEFAULTS } from "@/lib/app-config";
+import { canAccessNavItem, SYSTEM_DEFAULTS } from "@/lib/app-config";
 
 /* ────────────────────────────────────────────
    SVG icons — inline for zero-dependency perf
@@ -82,6 +82,11 @@ const icons: Record<string, React.ReactNode> = {
       <circle cx="17.5" cy="18.5" r="1.7" />
     </svg>
   ),
+  actividad: (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+    </svg>
+  ),
   config: (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3" />
@@ -96,7 +101,7 @@ const icons: Record<string, React.ReactNode> = {
 };
 
 /* ─── Nav structure (matches handoff v2 exactly) ─── */
-type NavItem = { key: string; label: string; href: string; badge?: number };
+type NavItem = { key: string; label: string; href: string };
 type NavSection = { title: string; items: NavItem[] };
 
 const navSections: NavSection[] = [
@@ -123,6 +128,7 @@ const navSections: NavSection[] = [
   {
     title: "Sistema",
     items: [
+      { key: "actividad", label: "Actividad", href: "/actividad" },
       { key: "config", label: "Configuración", href: "/configuracion" },
     ],
   },
@@ -138,7 +144,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "vendedor";
+  role: "admin" | "vendedor" | "usuario";
   active: boolean;
 }
 
@@ -157,8 +163,6 @@ export default function Sidebar({
     paralelo: SYSTEM_DEFAULTS.rates.paralelo,
     bcv: SYSTEM_DEFAULTS.rates.bcv,
   });
-  const [lowStockCount, setLowStockCount] = useState(0);
-  const [consignacionPendiente, setConsignacionPendiente] = useState(0);
 
   const userName = user?.name || "Usuario";
   const userInitials = user?.name
@@ -169,64 +173,38 @@ export default function Sidebar({
         .toUpperCase()
         .slice(0, 2)
     : "US";
-  const userRole = user?.role === "admin" ? "Administradora" : "Vendedora";
+  const userRole =
+    user?.role === "admin" ? "Administradora" : user?.role === "usuario" ? "Operador" : "Vendedora";
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadStats() {
       try {
-        const config = await getConfigData();
-        const pRate = parseFloat(
-          config.settings[SETTINGS_KEYS.parallelRate] || String(SYSTEM_DEFAULTS.rates.paralelo)
-        );
-        const bRate = parseFloat(
-          config.settings[SETTINGS_KEYS.bcvRate] || String(SYSTEM_DEFAULTS.rates.bcv)
-        );
-        setRates({ paralelo: pRate, bcv: bRate });
-
-        const models = await getInventoryModels();
-        const lowStockThreshold = parseInt(
-          config.settings[SETTINGS_KEYS.lowStockThreshold] ||
-            String(SYSTEM_DEFAULTS.lowStockThreshold),
-          10
-        );
-        let lowCount = 0;
-        models.forEach((m: any) => {
-          m.skus.forEach((s: any) => {
-            if (s.stock <= lowStockThreshold) {
-              lowCount++;
-            }
-          });
-        });
-        setLowStockCount(lowCount);
-
-        const cons = await getConsigneesData();
-        let pendingCons = 0;
-        cons.forEach((c: any) => {
-          c.lots.forEach((l: any) => {
-            if (l.status === "pendiente" || l.status === "pago_parcial") {
-              pendingCons++;
-            }
-          });
-        });
-        setConsignacionPendiente(pendingCons);
+        const liveRates = await getRatesForDisplayAction();
+        if (cancelled) return;
+        setRates({ paralelo: liveRates.paralelo, bcv: liveRates.bcv });
       } catch (e) {
         console.error("Error loading sidebar stats:", e);
       }
     }
-    loadStats();
-  }, [pathname]);
+
+    const handleRefresh = () => {
+      void loadStats();
+    };
+
+    void loadStats();
+    window.addEventListener("ku:sidebar-refresh", handleRefresh);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("ku:sidebar-refresh", handleRefresh);
+    };
+  }, []);
 
   /* Determine active nav key from pathname */
   function isActive(href: string) {
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
-  }
-
-  /* Inject badges */
-  function getBadge(key: string): number | undefined {
-    if (key === "inventario") return lowStockCount;
-    if (key === "consignacion") return consignacionPendiente;
-    return undefined;
   }
 
   const handleLogout = async () => {
@@ -242,7 +220,11 @@ export default function Sidebar({
     .filter((section) => section.items.length > 0);
 
   return (
-    <aside className={`sidebar ${isOpen ? "open" : ""}`}>
+    <aside
+      className={`sidebar ${isOpen ? "open" : ""}`}
+      role="navigation"
+      aria-label="Menú principal"
+    >
       {/* Brand */}
       <div className="sidebar-brand" style={{ display: "flex", alignItems: "center" }}>
         <div className="sidebar-brand-logo" style={{ flexShrink: 0 }}>
@@ -269,18 +251,15 @@ export default function Sidebar({
             <div className="sidebar-section-label">{section.title}</div>
             <nav className="sidebar-nav">
               {section.items.map((item) => {
-                const badge = getBadge(item.key);
                 return (
                   <Link
                     key={item.key}
                     href={item.href}
+                    onClick={onClose}
                     className={`sidebar-nav-item ${isActive(item.href) ? "active" : ""}`}
                   >
                     {icons[item.key]}
                     <span>{item.label}</span>
-                    {badge !== undefined && (
-                      <span className="sidebar-badge">{badge}</span>
-                    )}
                   </Link>
                 );
               })}

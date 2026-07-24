@@ -1,0 +1,54 @@
+consignatario,qty,color_raw,modelo_raw,talla,modelo,color,color_nombre,composite_code,existe,flags
+Melsy,1,Amarillo,Bola campana,XL,42342,Z32,Amarillo,42342-Z32-XL,si,
+Melsy,1,Amarillo,Bola campana,L,42342,Z32,Amarillo,42342-Z32-L,si,
+Melsy,1,Amarillo,Bola campana,S,42342,Z32,Amarillo,42342-Z32-S,si,
+Melsy,1,Amarillo,Bola campana,S,42342,Z32,Amarillo,42342-Z32-S,si,
+Melsy,1,Azul Rey,Joger cuello Mao,XS,42015,Z22,Azul Rey,42015-Z22-XS,si,
+Melsy,1,Azul Rey,Bola recta,2XL,42168,Z22,Azul Rey,42168-Z22-2XL,NO,SKU no existe
+Melsy,1,Azul Rey,Bola recta,2XL,42168,Z22,Azul Rey,42168-Z22-2XL,NO,SKU no existe
+Melsy,1,Azul Rey,Bola recta,XL,42168,Z22,Azul Rey,42168-Z22-XL,si,
+Melsy,1,Azul Rey,Bola recta,L,42168,Z22,Azul Rey,42168-Z22-L,si,
+Melsy,1,Rojo 42168,Joger cuello V,M,42122,Z40,Rojo,42122-Z40-M,si,
+Melsy,1,Rojo Joger,Joger cuello V,M,42122,Z40,Rojo,42122-Z40-M,si,
+Melsy,1,Rojo 42168,Bola recta,S,42168,Z40,Rojo,42168-Z40-S,si,
+Melsy,1,Morado,Bola campana,M,42342,Z20,Morado,42342-Z20-M,si,
+Melsy,1,Verde agua,Bola campana,S,42342,Z31,Verde Agua,42342-Z31-S,si,
+Melsy,1,Marron,Bola recta,S,42168,Z1,Marrón Claro,42168-Z1-S,si,Z1/Z35
+Melsy,1,Verde Pizarra,Bola recta,S,42168,Z29,Verde Pizarra,42168-Z29-S,si,
+Melsy,1,Gris,Bola recta,S,42168,Z27,Gris,42168-Z27-S,si,Z27/Z34
+Melsy,1,Lila,Bola recta,XS,42168,Z15,Lila,42168-Z15-XS,si,
+Melsy,1,Beis,Bola recta,S,42168,Z25,Beige,42168-Z25-S,si,
+Melsy,1,Azul Romulo,Bola recta,S,42168,Z26,Azul Rómulo,42168-Z26-S,si,
+Melsy,1,Naranja cuello Mao,Joger,S,42015,Z13,Naranja,42015-Z13-S,si,joger? (42015/42122)
+Melsy,1,Degradado Fucsia Morado,Joger,S,42187,,,,NO,joger? (42015/42122) | DEGRADADO A-E (definir) | SKU no existe
+Melsy,1,Degradado Morado Fucsia,Joger,S,42187,,,,NO,joger? (42015/42122) | DEGRADADO A-E (definir) | SKU no existe
+Melsy,1,Fucsia,Bola recta,M,42168,Z3,Fucsia,42168-Z3-M,si,
+Melsy,1,negro Joger,Joger cuello Mao,XS,42015,Z21,Negro,42015-Z21-XS,si,
+Melsy,1,negro cuello V,Bola recta,S,42168,Z21,Negro,42168-Z21-S,si,
+Melsy,1,Aguamarina Z2,Bola recta Hombre,L,42019,Z2,Azul Celeste,42019-Z2-L,si,
+Melsy,1,Gris,caballero,2XL,42019,Z27,Gris,42019-Z27-2XL,si,Z27/Z34
+Melsy,1,Marron,Bola recta,2XL,42168,Z1,Marrón Claro,42168-Z1-2XL,NO,Z1/Z35 | SKU no existe
+Maglly,2,Marron,Bota Recta,S,42168,Z1,Marrón Claro,42168-Z1-S,si,Z1/Z35
+Maglly,1,Negro,Bota Ancha,S,42342,Z21,Negro,42342-Z21-S,si,
+Maglly,1,Azul cielo,Bota Ancha,S,42342,Z2,Azul Celeste,42342-Z2-S,NO,SKU no existe
+Maglly,1,Azul oscuro,Bota Recta,S,42168,Z9,Azul Marino,42168-Z9-S,si,Z9/Z22
+Maglly,1,fucsia,Bota Recta,M,42168,Z3,Fucsia,42168-Z3-M,si,
+Maglly,1,Amarillo,Bota Ancha,M,42342,Z32,Amarillo,42342-Z32-M,si,
+Maglly,1,Beige,Bota Recta,M,42168,Z25,Beige,42168-Z25-M,si,
+Maglly,1,Azul Electrico,Bota Recta,M,42168,Z22,Azul Rey,42168-Z22-M,si,Z22/Z2
+Maglly,1,Vinotinto,Bota Recta,M,42168,Z8,Vinotinto,42168-Z8-M,si,
+Maglly,1,Vino Morado,Bota Recta Cierre,M,42108,Z17,Morado Vino,42108-Z17-M,si,
+Maglly,1,Gris,Bota Recta,M,42168,Z27,Gris,42168-Z27-M,si,Z27/Z34
+Maglly,1,Menta,Bota Recta,M,42168,Z11,Pistacho,42168-Z11-M,si,Z11/Z31
+Maglly,1,Rojo,Bota Recta 42168,M,42168,Z40,Rojo,42168-Z40-M,si,
+Maglly,1,Marron,Bota Recta,M,42168,Z1,Marrón Claro,42168-Z1-M,si,Z1/Z35
+Maglly,2,Negro,Bota Ancha,M,42342,Z21,Negro,42342-Z21-M,si,
+Maglly,1,Azul cielo,Bota Recta,M,42168,Z2,Azul Celeste,42168-Z2-M,si,
+Maglly,1,Gris,Bota Recta,L,42168,Z27,Gris,42168-Z27-L,si,Z27/Z34
+Maglly,1,Vinotinto,Bota Recta,L,42168,Z8,Vinotinto,42168-Z8-L,si,
+Maglly,1,Rojo,Bota Recta,L,42168,Z40,Rojo,42168-Z40-L,si,
+Maglly,2,Marron,Bota Recta,L,42168,Z1,Marrón Claro,42168-Z1-L,si,Z1/Z35
+Maglly,1,Negro,Bota Ancha,L,42342,Z21,Negro,42342-Z21-L,si,
+Maglly,1,Negro,Bota Recta,L,42168,Z21,Negro,42168-Z21-L,si,
+Maglly,1,Negro,Bota Recta,XL,42168,Z21,Negro,42168-Z21-XL,si,
+Maglly,1,Vinotinto,Bota Recta,XL,42168,Z8,Vinotinto,42168-Z8-XL,si,

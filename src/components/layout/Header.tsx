@@ -16,12 +16,6 @@ const searchIcon = (
   </svg>
 );
 
-const plusIcon = (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-    <path d="M12 5v14M5 12h14" />
-  </svg>
-);
-
 /* Title mapping from handoff v2 */
 const pageMeta: Record<string, { kicker: string; title: string }> = {
   "/": { kicker: "Resumen del negocio", title: "Panel" },
@@ -38,11 +32,10 @@ const pageMeta: Record<string, { kicker: string; title: string }> = {
 };
 
 interface HeaderProps {
-  onNuevaVenta?: () => void;
   onToggleSidebar?: () => void;
 }
 
-export default function Header({ onNuevaVenta, onToggleSidebar }: HeaderProps) {
+export default function Header({ onToggleSidebar }: HeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -186,27 +179,6 @@ export default function Header({ onNuevaVenta, onToggleSidebar }: HeaderProps) {
           )}
         </div>
 
-        {/* Range selector */}
-        <div className="range-selector">
-          <button className="range-btn active">Hoy</button>
-          <button className="range-btn">Semana</button>
-          <button className="range-btn">Mes</button>
-        </div>
-
-        {/* Nueva venta */}
-        <button
-          className="btn btn-primary"
-          onClick={() => {
-            if (onNuevaVenta) {
-              onNuevaVenta();
-            } else {
-              router.push("/ventas?openModal=true");
-            }
-          }}
-        >
-          {plusIcon}
-          Nueva venta
-        </button>
       </div>
     </header>
   );

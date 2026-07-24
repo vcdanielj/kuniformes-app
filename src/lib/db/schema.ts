@@ -19,7 +19,7 @@ export const users = sqliteTable("users", {
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
-  role: text("role", { enum: ["admin", "vendedor"] }).notNull().default("vendedor"),
+  role: text("role", { enum: ["admin", "vendedor", "usuario"] }).notNull().default("vendedor"),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
   createdAt: text("created_at").notNull().default(now),
 });
@@ -32,6 +32,21 @@ export const sessions = sqliteTable("sessions", {
   expiresAt: integer("expires_at").notNull(),
 }, (table) => ({
   userIdIdx: index("sessions_user_id_idx").on(table.userId),
+}));
+
+// Web Push (VAPID) subscriptions, one row per browser/device that opted in.
+// `endpoint` is the push service URL and is unique per subscription.
+export const pushSubscriptions = sqliteTable("push_subscriptions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: text("created_at").notNull().default(now),
+}, (table) => ({
+  userIdIdx: index("push_subscriptions_user_id_idx").on(table.userId),
 }));
 
 /* ============================================================
@@ -113,8 +128,12 @@ export const models = sqliteTable("models", {
   type: text("type", { enum: ["con_tallas", "sin_tallas"] })
     .notNull()
     .default("con_tallas"),
+  gender: text("gender", { enum: ["dama", "caballero", "unisex"] })
+    .notNull()
+    .default("dama"),
   basePrice: real("base_price").notNull(),
   avgCost: real("avg_cost").notNull().default(0),
+  lowStockThreshold: integer("low_stock_threshold").notNull().default(3),
   createdAt: text("created_at").notNull().default(now),
 }, (table) => ({
   categoryIdIdx: index("models_category_id_idx").on(table.categoryId),
@@ -221,6 +240,7 @@ export const purchases = sqliteTable("purchases", {
 }, (table) => ({
   supplierIdIdx: index("purchases_supplier_id_idx").on(table.supplierId),
   dateIdx: index("purchases_date_idx").on(table.date),
+  statusIdx: index("purchases_status_idx").on(table.status),
 }));
 
 export const purchaseItems = sqliteTable("purchase_items", {
@@ -233,6 +253,7 @@ export const purchaseItems = sqliteTable("purchase_items", {
     .references(() => skus.id),
   quantity: integer("quantity").notNull(),
   unitCost: real("unit_cost").notNull(),
+  receivedQuantity: integer("received_quantity").notNull().default(0),
 }, (table) => ({
   purchaseIdIdx: index("purchase_items_purchase_id_idx").on(table.purchaseId),
   skuIdIdx: index("purchase_items_sku_id_idx").on(table.skuId),
@@ -334,6 +355,7 @@ export const quotes = sqliteTable("quotes", {
   dateIdx: index("quotes_date_idx").on(table.date),
   numberIdx: index("quotes_number_idx").on(table.number),
   convertedToSaleIdIdx: index("quotes_converted_to_sale_id_idx").on(table.convertedToSaleId),
+  statusIdx: index("quotes_status_idx").on(table.status),
 }));
 
 export const quoteItems = sqliteTable("quote_items", {
@@ -376,6 +398,7 @@ export const returns = sqliteTable("returns", {
   userIdIdx: index("returns_user_id_idx").on(table.userId),
   referenceIdx: index("returns_reference_idx").on(table.reference),
   createdAtIdx: index("returns_created_at_idx").on(table.createdAt),
+  statusIdx: index("returns_status_idx").on(table.status),
 }));
 
 export const returnItems = sqliteTable("return_items", {
@@ -424,6 +447,7 @@ export const consignmentLots = sqliteTable("consignment_lots", {
 }, (table) => ({
   consigneeIdIdx: index("consignment_lots_consignee_id_idx").on(table.consigneeId),
   dateIdx: index("consignment_lots_date_idx").on(table.date),
+  statusIdx: index("consignment_lots_status_idx").on(table.status),
 }));
 
 export const consignmentItems = sqliteTable("consignment_items", {
@@ -452,6 +476,10 @@ export const consignmentPayments = sqliteTable("consignment_payments", {
     .notNull()
     .references(() => paymentMethods.id),
   amountUsd: real("amount_usd").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  amountOriginal: real("amount_original"),
+  rateUsed: real("rate_used"),
+  rateSource: text("rate_source", { enum: ["paralelo", "bcv", "manual"] }).default("manual"),
   date: text("date").notNull(),
   reference: text("reference"),
 }, (table) => ({
@@ -502,6 +530,7 @@ export const shipments = sqliteTable("shipments", {
   saleIdIdx: index("shipments_sale_id_idx").on(table.saleId),
   carrierIdIdx: index("shipments_carrier_id_idx").on(table.carrierId),
   trackingNumberIdx: index("shipments_tracking_number_idx").on(table.trackingNumber),
+  statusIdx: index("shipments_status_idx").on(table.status),
 }));
 
 /* ============================================================

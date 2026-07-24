@@ -36,13 +36,16 @@ import {
   expenses,
   shipments,
   auditLog,
+  pushSubscriptions,
 } from "./schema";
-import { eq, and, sql, gte, inArray, or } from "drizzle-orm";
+import { eq, ne, and, sql, gte, lte, inArray, or, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { generateSkuCode } from "../utils";
 import { logAuditAction } from "./audit";
 import { getSessionUser } from "../auth/session";
 import { hashPassword } from "../auth/password";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { sendWebPush } from "../push/web-push";
 import { SETTINGS_KEYS, SYSTEM_DEFAULTS } from "../app-config";
 import {
   convertToUsd,
@@ -55,6 +58,18 @@ import {
   type FxSource,
 } from "../exchange-rates/service";
 
+/**
+ * Cloudflare D1 does NOT support interactive transactions over the binding:
+ * drizzle's `db.transaction()` emits a `BEGIN` that D1 rejects ("Failed query: begin").
+ * (It only works on the local better-sqlite3 driver.) D1 already gave no real
+ * atomicity here, so we run the callback sequentially on `db`. Validations still
+ * throw and surface as { success:false } via each action's try/catch.
+ * For true atomicity use `db.batch([...])` (see memory: d1-transactions-not-atomic).
+ */
+async function runInTx<T>(cb: (tx: typeof db) => Promise<T>): Promise<T> {
+  return cb(db);
+}
+
 async function requireAuth() {
   const { session, user } = await getSessionUser();
   if (!session || !user) {
@@ -63,9 +78,106 @@ async function requireAuth() {
   return { session, user };
 }
 
+/* ============================================================
+   Web Push notifications (admins only)
+   ============================================================ */
+
+// Save (or refresh) the current user's browser push subscription.
+export async function savePushSubscription(sub: {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}) {
+  try {
+    const { user } = await requireAuth();
+    if (!sub?.endpoint || !sub.keys?.p256dh || !sub.keys?.auth) {
+      return { success: false, error: "Suscripción inválida." };
+    }
+    await db
+      .insert(pushSubscriptions)
+      .values({
+        userId: user.id,
+        endpoint: sub.endpoint,
+        p256dh: sub.keys.p256dh,
+        auth: sub.keys.auth,
+      })
+      .onConflictDoUpdate({
+        target: pushSubscriptions.endpoint,
+        set: { userId: user.id, p256dh: sub.keys.p256dh, auth: sub.keys.auth },
+      });
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "No se pudo registrar la suscripción." };
+  }
+}
+
+export async function removePushSubscription(endpoint: string) {
+  try {
+    await requireAuth();
+    if (endpoint) {
+      await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+    }
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "No se pudo eliminar la suscripción." };
+  }
+}
+
+// Fire a no-payload push to every active admin's subscriptions. Best-effort:
+// never throws (a notification failure must not break the sale), prunes dead
+// subscriptions (404/410), and runs in the background via ctx.waitUntil when
+// available so it doesn't delay the response.
+async function notifyAdminsNewSale() {
+  try {
+    const { env, ctx } = getCloudflareContext();
+    const privateKey = (env as unknown as Record<string, string | undefined>).VAPID_PRIVATE_KEY;
+    if (!privateKey) return; // push not configured (no secret set) — skip silently
+
+    const subs = await db
+      .select({
+        endpoint: pushSubscriptions.endpoint,
+        p256dh: pushSubscriptions.p256dh,
+        auth: pushSubscriptions.auth,
+      })
+      .from(pushSubscriptions)
+      .innerJoin(users, eq(pushSubscriptions.userId, users.id))
+      .where(and(eq(users.role, "admin"), eq(users.active, true)));
+
+    if (subs.length === 0) return;
+
+    const deliver = async () => {
+      for (const sub of subs) {
+        try {
+          const result = await sendWebPush(sub, privateKey);
+          if (result.gone) {
+            await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, sub.endpoint));
+          }
+        } catch {
+          // Ignore individual delivery failures.
+        }
+      }
+    };
+
+    if (ctx?.waitUntil) ctx.waitUntil(deliver());
+    else await deliver();
+  } catch {
+    // Notifications are best-effort and must never affect the transaction.
+  }
+}
+
 async function requireAdmin() {
   const { session, user } = await requireAuth();
   if (user.role !== "admin") {
+    throw new Error("Acceso denegado. Se requieren privilegios de Administrador.");
+  }
+  return { session, user };
+}
+
+// Staff = operational access (admin + usuario), but not "vendedor". Used for
+// inventory, purchases, expenses, config catalogs, rates, consignment, etc.
+// User management and the activity log stay strictly requireAdmin.
+async function requireStaff() {
+  const { session, user } = await requireAuth();
+  if (user.role !== "admin" && user.role !== "usuario") {
     throw new Error("Acceso denegado. Se requieren privilegios de Administrador.");
   }
   return { session, user };
@@ -323,20 +435,31 @@ function parseModelColorImageDataUrl(imageDataUrl: string) {
    ============================================================ */
 
 export async function getConfigData() {
-  const allColors = await db.select().from(colors).orderBy(colors.sortOrder);
-  const allSizes = await db.select().from(sizes).orderBy(sizes.sortOrder);
-  const allCategories = await db.select().from(categories);
-  const allPaymentMethods = await db.select().from(paymentMethods);
-  const allCarriers = await db.select().from(carriers);
-  const allSettings = await db.select().from(settings);
-  const ratesOverview = await getExchangeRatesOverview();
+  await requireAuth();
+  const [
+    allColors,
+    allSizes,
+    allCategories,
+    allPaymentMethods,
+    allCarriers,
+    allSettings,
+    ratesOverview,
+  ] = await Promise.all([
+    db.select().from(colors).orderBy(colors.sortOrder),
+    db.select().from(sizes).orderBy(sizes.sortOrder),
+    db.select().from(categories),
+    db.select().from(paymentMethods),
+    db.select().from(carriers),
+    db.select().from(settings),
+    getExchangeRatesOverview(),
+  ]);
 
   const settingsRecord: Record<string, string> = {};
   allSettings.forEach((s: any) => {
     settingsRecord[s.key] = s.value;
   });
 
-  return {
+  const result = {
     colors: allColors,
     sizes: allSizes,
     categories: allCategories,
@@ -345,6 +468,26 @@ export async function getConfigData() {
     settings: settingsRecord,
     exchangeRates: ratesOverview.history.slice(-10),
     fxOverview: ratesOverview,
+  };
+  return result;
+}
+
+/**
+ * Lightweight rate read for the persistent Sidebar widget. Avoids running the
+ * full getConfigData() (8 table scans incl. the whole exchange_rates table) on
+ * every navigation just to display two numbers.
+ */
+export async function getRatesForDisplayAction() {
+  await requireAuth();
+  const rows = await db
+    .select()
+    .from(settings)
+    .where(inArray(settings.key, [SETTINGS_KEYS.parallelRate, SETTINGS_KEYS.bcvRate]));
+  const map = new Map<string, string>(rows.map((r: any) => [r.key, r.value]));
+  return {
+    paralelo:
+      Number.parseFloat(map.get(SETTINGS_KEYS.parallelRate) || "") || SYSTEM_DEFAULTS.rates.paralelo,
+    bcv: Number.parseFloat(map.get(SETTINGS_KEYS.bcvRate) || "") || SYSTEM_DEFAULTS.rates.bcv,
   };
 }
 
@@ -355,7 +498,7 @@ export async function getExchangeRatesOverviewAction() {
 
 export async function syncExchangeRatesAction(includeHistory = true) {
   try {
-    await requireAdmin();
+    await requireStaff();
     const result = await syncDolarApiRates({ includeHistory });
     if (!result.success) {
       throw new Error(result.error);
@@ -378,7 +521,7 @@ export async function saveManualExchangeRatesAction(data: {
   eurBcv?: number;
 }) {
   try {
-    await requireAdmin();
+    await requireStaff();
     const result = await saveManualRates([
       { currencyCode: "USD", source: "paralelo", rate: data.usdParalelo },
       { currencyCode: "USD", source: "bcv", rate: data.usdBcv },
@@ -410,6 +553,47 @@ export async function getUsersListAction() {
     }));
 
   return formattedUsers.sort((a: any, b: any) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Activity log (admin only) — every audited action across the app, newest first,
+ * with the acting user's name and a severity for the UI to highlight: "danger"
+ * for deletions/voids, "warning" for below-cost sales.
+ */
+export async function getActivityLogAction(limit = 250) {
+  await requireAdmin();
+  const rows = await db
+    .select({
+      id: auditLog.id,
+      action: auditLog.action,
+      entity: auditLog.entity,
+      entityId: auditLog.entityId,
+      details: auditLog.details,
+      createdAt: auditLog.createdAt,
+      userName: users.name,
+      userEmail: users.email,
+    })
+    .from(auditLog)
+    .leftJoin(users, eq(auditLog.userId, users.id))
+    .orderBy(desc(auditLog.createdAt), desc(auditLog.id))
+    .limit(limit);
+
+  return rows.map((r: any) => {
+    const action = String(r.action || "").toUpperCase();
+    let severity: "danger" | "warning" | "normal" = "normal";
+    if (action.includes("ELIMINAR") || action.includes("ANULAR")) severity = "danger";
+    else if (action.includes("BAJO_COSTO")) severity = "warning";
+    return {
+      id: r.id,
+      action: r.action,
+      entity: r.entity,
+      entityId: r.entityId,
+      details: r.details,
+      createdAt: r.createdAt,
+      userName: r.userName || "Sistema",
+      severity,
+    };
+  });
 }
 
 function normalizeRequiredText(value: string, label: string) {
@@ -451,7 +635,7 @@ export async function createUserAction(data: {
   name: string;
   email: string;
   password: string;
-  role: "admin" | "vendedor";
+  role: "admin" | "vendedor" | "usuario";
 }) {
   try {
     await requireAdmin();
@@ -500,7 +684,7 @@ export async function updateUserAction(data: {
   }
 }
 
-export async function updateUserRoleAction(id: string, role: "admin" | "vendedor") {
+export async function updateUserRoleAction(id: string, role: "admin" | "vendedor" | "usuario") {
   try {
     const context = await ensureUserManagementAllowed(id);
     if (context.isLastActiveAdmin && role !== "admin") {
@@ -580,7 +764,7 @@ export async function deleteUserAction(id: string) {
 
 export async function addColor(code: string, name: string, hex: string) {
   try {
-    await requireAdmin();
+    await requireStaff();
     await db.insert(colors).values({
       code,
       name,
@@ -596,7 +780,7 @@ export async function addColor(code: string, name: string, hex: string) {
 
 export async function updateColorAction(id: number, code: string, name: string, hex: string) {
   try {
-    await requireAdmin();
+    await requireStaff();
     await db
       .update(colors)
       .set({
@@ -616,7 +800,7 @@ export async function updateColorAction(id: number, code: string, name: string, 
 
 export async function deleteColorAction(id: number) {
   try {
-    await requireAdmin();
+    await requireStaff();
     const [modelColorCount, imageCount, skuCount] = await Promise.all([
       countRows(db.select({ count: sql<number>`count(*)` }).from(modelColors).where(eq(modelColors.colorId, id))),
       countRows(db.select({ count: sql<number>`count(*)` }).from(modelColorImages).where(eq(modelColorImages.colorId, id))),
@@ -637,7 +821,7 @@ export async function deleteColorAction(id: number) {
 
 export async function addSize(name: string) {
   try {
-    await requireAdmin();
+    await requireStaff();
     await db.insert(sizes).values({
       name,
       sortOrder: 0,
@@ -651,7 +835,7 @@ export async function addSize(name: string) {
 
 export async function updateSizeAction(id: number, name: string) {
   try {
-    await requireAdmin();
+    await requireStaff();
     await db.update(sizes).set({ name: normalizeRequiredText(name, "Nombre") }).where(eq(sizes.id, id));
     revalidatePath("/configuracion");
     revalidatePath("/inventario");
@@ -663,7 +847,7 @@ export async function updateSizeAction(id: number, name: string) {
 
 export async function deleteSizeAction(id: number) {
   try {
-    await requireAdmin();
+    await requireStaff();
     const [modelSizeCount, skuCount] = await Promise.all([
       countRows(db.select({ count: sql<number>`count(*)` }).from(modelSizes).where(eq(modelSizes.sizeId, id))),
       countRows(db.select({ count: sql<number>`count(*)` }).from(skus).where(eq(skus.sizeId, id))),
@@ -682,7 +866,7 @@ export async function deleteSizeAction(id: number) {
 
 export async function addCategory(name: string, type: "product" | "expense") {
   try {
-    await requireAdmin();
+    await requireStaff();
     await db.insert(categories).values({
       name,
       type,
@@ -696,7 +880,7 @@ export async function addCategory(name: string, type: "product" | "expense") {
 
 export async function updateCategoryAction(id: number, name: string, type: "product" | "expense") {
   try {
-    await requireAdmin();
+    await requireStaff();
     await db
       .update(categories)
       .set({ name: normalizeRequiredText(name, "Nombre"), type })
@@ -712,7 +896,7 @@ export async function updateCategoryAction(id: number, name: string, type: "prod
 
 export async function deleteCategoryAction(id: number) {
   try {
-    await requireAdmin();
+    await requireStaff();
     const [modelCount, expenseCount] = await Promise.all([
       countRows(db.select({ count: sql<number>`count(*)` }).from(models).where(eq(models.categoryId, id))),
       countRows(db.select({ count: sql<number>`count(*)` }).from(expenses).where(eq(expenses.categoryId, id))),
@@ -732,7 +916,7 @@ export async function deleteCategoryAction(id: number) {
 
 export async function addPaymentMethod(name: string, currency: string) {
   try {
-    await requireAdmin();
+    await requireStaff();
     await db.insert(paymentMethods).values({
       name,
       currency,
@@ -747,7 +931,7 @@ export async function addPaymentMethod(name: string, currency: string) {
 
 export async function updatePaymentMethodAction(id: number, data: { name: string; currency: string; active: boolean }) {
   try {
-    await requireAdmin();
+    await requireStaff();
     await db
       .update(paymentMethods)
       .set({
@@ -767,7 +951,7 @@ export async function updatePaymentMethodAction(id: number, data: { name: string
 
 export async function deletePaymentMethodAction(id: number) {
   try {
-    await requireAdmin();
+    await requireStaff();
     const [salePaymentCount, consignmentPaymentCount] = await Promise.all([
       countRows(db.select({ count: sql<number>`count(*)` }).from(salePayments).where(eq(salePayments.methodId, id))),
       countRows(db.select({ count: sql<number>`count(*)` }).from(consignmentPayments).where(eq(consignmentPayments.methodId, id))),
@@ -787,7 +971,7 @@ export async function deletePaymentMethodAction(id: number) {
 
 export async function addCarrier(name: string, tag: string) {
   try {
-    await requireAdmin();
+    await requireStaff();
     await db.insert(carriers).values({
       name,
       tag,
@@ -801,7 +985,7 @@ export async function addCarrier(name: string, tag: string) {
 
 export async function updateCarrierAction(id: number, name: string, tag: string) {
   try {
-    await requireAdmin();
+    await requireStaff();
     await db
       .update(carriers)
       .set({
@@ -819,7 +1003,7 @@ export async function updateCarrierAction(id: number, name: string, tag: string)
 
 export async function deleteCarrierAction(id: number) {
   try {
-    await requireAdmin();
+    await requireStaff();
     const shipmentCount = await countRows(
       db.select({ count: sql<number>`count(*)` }).from(shipments).where(eq(shipments.carrierId, id))
     );
@@ -838,14 +1022,15 @@ export async function deleteCarrierAction(id: number) {
 export async function updateSetting(key: string, value: string) {
   try {
     const { user } = await requireAuth();
-    // Key validation: sellers can increment invoice/return counters, but other keys require admin role
+    // Key validation: any authenticated user can bump invoice/return counters.
+    // Brand identity + raw FX rate snapshots are admin-only. The low-stock
+    // threshold and default rate source live on the "Tasa & umbrales" config
+    // tab that is also shown to "usuario", so staff (admin OR usuario) may set them.
     const adminKeys: string[] = [
       SETTINGS_KEYS.brand,
       SETTINGS_KEYS.rif,
       SETTINGS_KEYS.phone,
       SETTINGS_KEYS.instagram,
-      SETTINGS_KEYS.lowStockThreshold,
-      SETTINGS_KEYS.defaultRateSource,
       SETTINGS_KEYS.parallelRate,
       SETTINGS_KEYS.bcvRate,
       SETTINGS_KEYS.euroParallelRate,
@@ -853,7 +1038,14 @@ export async function updateSetting(key: string, value: string) {
       SETTINGS_KEYS.lastRatesSyncAt,
       SETTINGS_KEYS.lastRatesSyncStatus,
     ];
+    const staffKeys: string[] = [
+      SETTINGS_KEYS.lowStockThreshold,
+      SETTINGS_KEYS.defaultRateSource,
+    ];
     if (adminKeys.includes(key) && user.role !== "admin") {
+      throw new Error("Acceso denegado. Se requieren privilegios de Administrador.");
+    }
+    if (staffKeys.includes(key) && user.role !== "admin" && user.role !== "usuario") {
       throw new Error("Acceso denegado. Se requieren privilegios de Administrador.");
     }
 
@@ -874,7 +1066,7 @@ export async function updateSetting(key: string, value: string) {
 
 export async function addExchangeRate(rate: number, source: "paralelo" | "bcv" | "manual") {
   try {
-    await requireAdmin();
+    await requireStaff();
     if (source === "manual") {
       throw new Error("Usa la accion de guardado manual de tasas para esta operacion.");
     }
@@ -896,24 +1088,31 @@ export async function addExchangeRate(rate: number, source: "paralelo" | "bcv" |
    ============================================================ */
 
 export async function getInventoryModels() {
-  const allModels = await db.select().from(models);
-  const allSkus = await db.select().from(skus);
-  const allCategories = await db.select().from(categories);
-  const allColorImages = await db.select().from(modelColorImages);
-
-  // Fetch all model-color relationships in one join query
-  const allModelColors = await db
-    .select({
-      modelId: modelColors.modelId,
-      code: colors.code,
-      name: colors.name,
-      hex: colors.hex,
-      colorId: colors.id,
-    })
-    .from(modelColors)
-    .innerJoin(colors, eq(modelColors.colorId, colors.id));
+  await requireAuth();
+  const [allModels, allSkus, allCategories, allColorImages, allModelColors] = await Promise.all([
+    db.select().from(models),
+    db.select().from(skus),
+    db.select().from(categories),
+    db.select().from(modelColorImages),
+    db
+      .select({
+        modelId: modelColors.modelId,
+        code: colors.code,
+        name: colors.name,
+        hex: colors.hex,
+        colorId: colors.id,
+      })
+      .from(modelColors)
+      .innerJoin(colors, eq(modelColors.colorId, colors.id)),
+  ]);
 
   const categoriesMap = new Map<number, string>(allCategories.map((c: any) => [c.id, c.name]));
+  const skusByModel = new Map<string, any[]>();
+  for (const sku of allSkus as any[]) {
+    const list = skusByModel.get(sku.modelId) || [];
+    list.push(sku);
+    skusByModel.set(sku.modelId, list);
+  }
 
   // Group model colors in-memory
   const modelColorsMap = new Map<string, any[]>();
@@ -935,7 +1134,7 @@ export async function getInventoryModels() {
 
   const result = [];
   for (const m of allModels as any[]) {
-    const modelSkus = allSkus.filter((s: any) => s.modelId === m.id);
+    const modelSkus = skusByModel.get(m.id) || [];
     const totalStock = modelSkus.reduce((sum: number, s: any) => sum + s.stock, 0);
 
     const mColorsList = modelColorsMap.get(m.id) || [];
@@ -948,13 +1147,14 @@ export async function getInventoryModels() {
       category: categoriesMap.get(m.categoryId || 0) || "Sin Categoría",
       basePrice: m.basePrice,
       type: m.type,
+      gender: m.gender || "dama",
+      lowStockThreshold: m.lowStockThreshold ?? 3,
       colorCodes,
       colors: mColorsList,
       totalStock,
       skus: modelSkus,
     });
   }
-
   return result;
 }
 
@@ -1012,7 +1212,7 @@ export async function upsertModelColorImageAction(data: {
   imageDataUrl: string;
 }) {
   try {
-    await requireAdmin();
+    await requireStaff();
     const modelId = data.modelId.trim();
     if (!modelId || !Number.isFinite(data.colorId) || data.colorId <= 0) {
       throw new Error("Modelo o color inválido.");
@@ -1057,7 +1257,7 @@ export async function upsertModelColorImageAction(data: {
 
 export async function deleteModelColorImageAction(modelId: string, colorId: number) {
   try {
-    await requireAdmin();
+    await requireStaff();
     await db
       .delete(modelColorImages)
       .where(and(eq(modelColorImages.modelId, modelId), eq(modelColorImages.colorId, colorId)));
@@ -1072,10 +1272,10 @@ export async function deleteModelColorImageAction(modelId: string, colorId: numb
 
 export async function adjustSkuStock(skuId: number, quantity: number, reason: string) {
   try {
-    const { user } = await requireAdmin();
+    const { user } = await requireStaff();
     const resolvedUserId = user.id;
 
-    await db.transaction(async (tx: any) => {
+    await runInTx(async (tx: any) => {
       const [skuRecord] = await tx.select().from(skus).where(eq(skus.id, skuId)).limit(1);
       if (!skuRecord) {
         throw new Error("SKU no encontrado.");
@@ -1108,7 +1308,7 @@ export async function adjustSkuStock(skuId: number, quantity: number, reason: st
         entity: "sku",
         entityId: skuId.toString(),
         details: `Ajuste de ${quantity} unidades por motivo: ${reason}`,
-      });
+      }, user.id);
     });
 
     revalidatePath("/inventario");
@@ -1127,13 +1327,15 @@ export async function createModel(data: {
   basePrice: number;
   avgCost: number;
   type: "con_tallas" | "sin_tallas";
+  gender?: "dama" | "caballero" | "unisex";
+  lowStockThreshold?: number;
   colorIds: number[];
   sizeIds: number[];
 }) {
   try {
-    await requireAdmin();
+    await requireStaff();
 
-    await db.transaction(async (tx: any) => {
+    await runInTx(async (tx: any) => {
       // 1. Get or create category
       let [categoryRecord] = await tx
         .select()
@@ -1156,8 +1358,13 @@ export async function createModel(data: {
         composition: data.composition,
         categoryId: categoryRecord.id,
         type: data.type,
+        gender: data.gender || "dama",
         basePrice: data.basePrice,
         avgCost: data.avgCost,
+        lowStockThreshold:
+          data.lowStockThreshold != null && Number.isFinite(data.lowStockThreshold)
+            ? Math.max(0, Math.floor(data.lowStockThreshold))
+            : 3,
       });
 
       // 3. Link colors
@@ -1233,18 +1440,143 @@ export async function createModel(data: {
   }
 }
 
+export async function updateModelAction(data: {
+  id: string;
+  name: string;
+  categoryName: string;
+  composition: string;
+  basePrice: number;
+  gender?: "dama" | "caballero" | "unisex";
+  avgCost?: number;
+  lowStockThreshold?: number;
+}) {
+  try {
+    await requireStaff();
+    const [model] = await db.select().from(models).where(eq(models.id, data.id)).limit(1);
+    if (!model) return { success: false, error: "Modelo no encontrado" };
+
+    let [categoryRecord] = await db
+      .select()
+      .from(categories)
+      .where(and(eq(categories.name, data.categoryName), eq(categories.type, "product")))
+      .limit(1);
+    if (!categoryRecord) {
+      const [res] = await db
+        .insert(categories)
+        .values({ name: data.categoryName, type: "product" })
+        .returning({ id: categories.id });
+      categoryRecord = { id: res.id, name: data.categoryName, type: "product" };
+    }
+
+    // Scalar update only — avgCost is auto-managed, and existing sale/quote line
+    // prices are snapshotted (unitPrice) so they are unaffected by a basePrice change.
+    await db
+      .update(models)
+      .set({
+        name: data.name,
+        composition: data.composition,
+        categoryId: categoryRecord.id,
+        basePrice: data.basePrice,
+        ...(data.gender ? { gender: data.gender } : {}),
+        ...(data.avgCost != null && Number.isFinite(data.avgCost) ? { avgCost: data.avgCost } : {}),
+        ...(data.lowStockThreshold != null && Number.isFinite(data.lowStockThreshold)
+          ? { lowStockThreshold: Math.max(0, Math.floor(data.lowStockThreshold)) }
+          : {}),
+      })
+      .where(eq(models.id, data.id));
+
+    // Set the baseline cost on SKUs that have not been costed by a purchase yet
+    // (stock 0). Costed SKUs keep their weighted-average cost.
+    if (data.avgCost != null && Number.isFinite(data.avgCost)) {
+      await db
+        .update(skus)
+        .set({ avgCost: data.avgCost })
+        .where(and(eq(skus.modelId, data.id), eq(skus.stock, 0)));
+    }
+
+    await logAuditAction({
+      action: "MODIFICAR",
+      entity: "model",
+      entityId: data.id,
+      details: `Modelo ${data.name} actualizado (basePrice: ${data.basePrice})`,
+    });
+
+    revalidatePath("/inventario");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al actualizar modelo" };
+  }
+}
+
+export async function deleteModelAction(modelId: string) {
+  try {
+    await requireStaff();
+    const modelSkus = await db.select().from(skus).where(eq(skus.modelId, modelId));
+    const skuIds = modelSkus.map((s: any) => s.id);
+
+    const withStock = modelSkus.find((s: any) => s.stock !== 0);
+    if (withStock) {
+      return {
+        success: false,
+        error: `No se puede eliminar: el SKU ${withStock.compositeCode} tiene stock (${withStock.stock}). Ajuste el stock a 0 primero.`,
+      };
+    }
+
+    if (skuIds.length > 0) {
+      const [refSale] = await db.select({ id: saleItems.id }).from(saleItems).where(inArray(saleItems.skuId, skuIds)).limit(1);
+      if (refSale) return { success: false, error: "No se puede eliminar: el modelo tiene ventas asociadas." };
+      const [refQuote] = await db.select({ id: quoteItems.id }).from(quoteItems).where(inArray(quoteItems.skuId, skuIds)).limit(1);
+      if (refQuote) return { success: false, error: "No se puede eliminar: el modelo tiene cotizaciones asociadas." };
+      const [refPurchase] = await db.select({ id: purchaseItems.id }).from(purchaseItems).where(inArray(purchaseItems.skuId, skuIds)).limit(1);
+      if (refPurchase) return { success: false, error: "No se puede eliminar: el modelo tiene compras asociadas." };
+      const [refConsign] = await db.select({ id: consignmentItems.id }).from(consignmentItems).where(inArray(consignmentItems.skuId, skuIds)).limit(1);
+      if (refConsign) return { success: false, error: "No se puede eliminar: el modelo tiene consignaciones asociadas." };
+      const [refReturn] = await db
+        .select({ id: returnItems.id })
+        .from(returnItems)
+        .where(or(inArray(returnItems.skuId, skuIds), inArray(returnItems.replacementSkuId, skuIds)))
+        .limit(1);
+      if (refReturn) return { success: false, error: "No se puede eliminar: el modelo tiene devoluciones asociadas." };
+    }
+
+    await runInTx(async (tx: any) => {
+      if (skuIds.length > 0) {
+        await tx.delete(stockAdjustments).where(inArray(stockAdjustments.skuId, skuIds));
+      }
+      await tx.delete(skus).where(eq(skus.modelId, modelId));
+      await tx.delete(modelColorImages).where(eq(modelColorImages.modelId, modelId));
+      await tx.delete(modelColors).where(eq(modelColors.modelId, modelId));
+      await tx.delete(modelSizes).where(eq(modelSizes.modelId, modelId));
+      await tx.delete(models).where(eq(models.id, modelId));
+    });
+
+    await logAuditAction({
+      action: "ELIMINAR",
+      entity: "model",
+      entityId: modelId,
+      details: `Modelo ${modelId} eliminado`,
+    });
+
+    revalidatePath("/inventario");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al eliminar modelo" };
+  }
+}
+
 /* ============================================================
    Purchases Actions (S3)
    ============================================================ */
 
 export async function getSuppliers() {
-  await requireAdmin();
-  return await db.select().from(suppliers);
+  await requireStaff();
+  const result = await db.select().from(suppliers);
+  return result;
 }
 
 export async function createSupplier(name: string, items: string, contact: string) {
   try {
-    await requireAdmin();
+    await requireStaff();
     await db.insert(suppliers).values({
       name,
       items,
@@ -1257,19 +1589,57 @@ export async function createSupplier(name: string, items: string, contact: strin
   }
 }
 
+export async function updateSupplierAction(id: number, name: string, items: string, contact: string) {
+  try {
+    await requireStaff();
+    await db.update(suppliers).set({ name, items, contact }).where(eq(suppliers.id, id));
+    revalidatePath("/compras");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al actualizar proveedor" };
+  }
+}
+
+export async function deleteSupplierAction(id: number) {
+  try {
+    await requireStaff();
+    const [ref] = await db.select({ id: purchases.id }).from(purchases).where(eq(purchases.supplierId, id)).limit(1);
+    if (ref) return { success: false, error: "No se puede eliminar: el proveedor tiene compras asociadas." };
+    await db.delete(suppliers).where(eq(suppliers.id, id));
+    revalidatePath("/compras");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al eliminar proveedor" };
+  }
+}
+
 export async function getPurchasesData() {
-  await requireAdmin();
-  const allPurchases = await db.select().from(purchases);
-  const allPurchaseItems = await db.select().from(purchaseItems);
-  const allSuppliers = await db.select().from(suppliers);
-  const allSkus = await db.select().from(skus);
+  await requireStaff();
+  const [allPurchases, allPurchaseItems, allSuppliers] = await Promise.all([
+    db.select().from(purchases),
+    db.select().from(purchaseItems),
+    db.select().from(suppliers),
+  ]);
+
+  // Only load the SKUs actually referenced by purchase items (for labels) rather
+  // than scanning the whole catalog.
+  const referencedSkuIds: number[] = Array.from(new Set(allPurchaseItems.map((it: any) => it.skuId as number)));
+  const allSkus = referencedSkuIds.length > 0
+    ? await db.select().from(skus).where(inArray(skus.id, referencedSkuIds))
+    : [];
 
   const suppliersMap = new Map<number, any>(allSuppliers.map((s: any) => [s.id, s]));
   const skusMap = new Map<number, any>(allSkus.map((s: any) => [s.id, s]));
+  const itemsByPurchase = new Map<number, any[]>();
+  for (const item of allPurchaseItems as any[]) {
+    const list = itemsByPurchase.get(item.purchaseId) || [];
+    list.push(item);
+    itemsByPurchase.set(item.purchaseId, list);
+  }
 
   const result = [];
   for (const p of allPurchases as any[]) {
-    const pItems = allPurchaseItems.filter((item: any) => item.purchaseId === p.id);
+    const pItems = itemsByPurchase.get(p.id) || [];
     const supplier = suppliersMap.get(p.supplierId) || { name: "Desconocido" };
 
     const itemsFormatted = pItems.map((item: any) => {
@@ -1293,7 +1663,8 @@ export async function getPurchasesData() {
     });
   }
 
-  return result.reverse();
+  const reversed = result.reverse();
+  return reversed;
 }
 
 export async function createPurchase(data: {
@@ -1304,9 +1675,9 @@ export async function createPurchase(data: {
   items: { skuId: number; quantity: number; unitCost: number }[];
 }) {
   try {
-    const { user } = await requireAdmin();
+    const { user } = await requireStaff();
 
-    await db.transaction(async (tx: any) => {
+    await runInTx(async (tx: any) => {
       const [purchaseRecord] = await tx
         .insert(purchases)
         .values({
@@ -1323,6 +1694,7 @@ export async function createPurchase(data: {
           skuId: item.skuId,
           quantity: item.quantity,
           unitCost: item.unitCost,
+          receivedQuantity: data.status === "recibida" ? item.quantity : 0,
         });
 
         if (data.status === "recibida") {
@@ -1335,7 +1707,7 @@ export async function createPurchase(data: {
         entity: "purchase",
         entityId: purchaseRecord.id.toString(),
         details: `Compra creada con estado: ${data.status} para proveedor ID: ${data.supplierId}`,
-      });
+      }, user.id);
     });
 
     revalidatePath("/compras");
@@ -1349,9 +1721,9 @@ export async function createPurchase(data: {
 
 export async function receivePurchase(purchaseId: number) {
   try {
-    const { user } = await requireAdmin();
+    const { user } = await requireStaff();
 
-    await db.transaction(async (tx: any) => {
+    await runInTx(async (tx: any) => {
       const [purchaseRecord] = await tx.select().from(purchases).where(eq(purchases.id, purchaseId)).limit(1);
       if (!purchaseRecord) throw new Error("Compra no encontrada");
       if (purchaseRecord.status === "recibida") throw new Error("La compra ya ha sido recibida");
@@ -1359,7 +1731,15 @@ export async function receivePurchase(purchaseId: number) {
       const pItems = await tx.select().from(purchaseItems).where(eq(purchaseItems.purchaseId, purchaseId));
 
       for (const item of pItems) {
-        await applySkuPurchaseUpdate(tx, item.skuId, item.quantity, item.unitCost, purchaseId, user.id);
+        // Only receive the still-pending quantity (supports completing a partial).
+        const pending = item.quantity - (item.receivedQuantity || 0);
+        if (pending > 0) {
+          await applySkuPurchaseUpdate(tx, item.skuId, pending, item.unitCost, purchaseId, user.id);
+          await tx
+            .update(purchaseItems)
+            .set({ receivedQuantity: item.quantity })
+            .where(eq(purchaseItems.id, item.id));
+        }
       }
 
       await tx
@@ -1372,7 +1752,7 @@ export async function receivePurchase(purchaseId: number) {
         entity: "purchase",
         entityId: purchaseId.toString(),
         details: `Compra recibida y stock de ítems reingresado`,
-      });
+      }, user.id);
     });
 
     revalidatePath("/compras");
@@ -1381,6 +1761,128 @@ export async function receivePurchase(purchaseId: number) {
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message || "Error al recibir compra" };
+  }
+}
+
+/**
+ * Receive a subset of a purchase's pending quantities. Raises stock for the
+ * received amount, updates received_quantity per item, and sets the purchase to
+ * "parcial" (or "recibida" once everything has arrived).
+ */
+export async function receivePurchaseItemsAction(
+  purchaseId: number,
+  receipts: { itemId: number; quantity: number }[]
+) {
+  try {
+    const { user } = await requireStaff();
+    const receiptMap = new Map<number, number>();
+    for (const r of receipts) {
+      if (r.quantity > 0) receiptMap.set(r.itemId, (receiptMap.get(r.itemId) || 0) + r.quantity);
+    }
+    if (receiptMap.size === 0) return { success: false, error: "Indique al menos una cantidad a recibir." };
+
+    await runInTx(async (tx: any) => {
+      const [purchaseRecord] = await tx.select().from(purchases).where(eq(purchases.id, purchaseId)).limit(1);
+      if (!purchaseRecord) throw new Error("Compra no encontrada");
+      if (purchaseRecord.status === "recibida") throw new Error("La compra ya ha sido recibida por completo");
+
+      const pItems = await tx.select().from(purchaseItems).where(eq(purchaseItems.purchaseId, purchaseId));
+      const itemsById = new Map<number, any>(pItems.map((it: any) => [it.id, it]));
+
+      for (const [itemId, qty] of receiptMap.entries()) {
+        const item = itemsById.get(itemId);
+        if (!item) throw new Error(`Ítem ${itemId} no pertenece a la compra.`);
+        const pending = item.quantity - (item.receivedQuantity || 0);
+        const toReceive = Math.min(qty, pending);
+        if (toReceive <= 0) continue;
+        await applySkuPurchaseUpdate(tx, item.skuId, toReceive, item.unitCost, purchaseId, user.id);
+        await tx
+          .update(purchaseItems)
+          .set({ receivedQuantity: (item.receivedQuantity || 0) + toReceive })
+          .where(eq(purchaseItems.id, item.id));
+        item.receivedQuantity = (item.receivedQuantity || 0) + toReceive;
+      }
+
+      const allReceived = pItems.every((it: any) => (it.receivedQuantity || 0) >= it.quantity);
+      await tx
+        .update(purchases)
+        .set({ status: allReceived ? "recibida" : "parcial" })
+        .where(eq(purchases.id, purchaseId));
+
+      await logAuditAction({
+        action: "MODIFICAR",
+        entity: "purchase",
+        entityId: purchaseId.toString(),
+        details: `Recepción parcial de compra (estado: ${allReceived ? "recibida" : "parcial"})`,
+      }, user.id);
+    });
+
+    revalidatePath("/compras");
+    revalidatePath("/inventario");
+    revalidatePath("/");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al recibir compra parcialmente" };
+  }
+}
+
+export async function updatePurchaseAction(data: {
+  id: number;
+  supplierId: number;
+  date: string;
+  notes?: string;
+}) {
+  try {
+    await requireStaff();
+    const [purchaseRecord] = await db.select().from(purchases).where(eq(purchases.id, data.id)).limit(1);
+    if (!purchaseRecord) return { success: false, error: "Compra no encontrada" };
+    if (purchaseRecord.status === "recibida" || purchaseRecord.status === "parcial") {
+      return {
+        success: false,
+        error: "No se puede editar una compra ya recibida (total o parcial), porque afecta el costo promedio. Cree una nueva.",
+      };
+    }
+
+    await db
+      .update(purchases)
+      .set({ supplierId: data.supplierId, date: data.date, notes: data.notes || "" })
+      .where(eq(purchases.id, data.id));
+
+    revalidatePath("/compras");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al editar compra" };
+  }
+}
+
+export async function deletePurchaseAction(purchaseId: number) {
+  try {
+    const { user } = await requireStaff();
+    const [purchaseRecord] = await db.select().from(purchases).where(eq(purchases.id, purchaseId)).limit(1);
+    if (!purchaseRecord) return { success: false, error: "Compra no encontrada" };
+    if (purchaseRecord.status === "recibida" || purchaseRecord.status === "parcial") {
+      return {
+        success: false,
+        error: "No se puede eliminar una compra ya recibida (total o parcial). Su stock y costo ya fueron aplicados.",
+      };
+    }
+
+    await runInTx(async (tx: any) => {
+      await tx.delete(purchaseItems).where(eq(purchaseItems.purchaseId, purchaseId));
+      await tx.delete(purchases).where(eq(purchases.id, purchaseId));
+    });
+
+    await logAuditAction({
+      action: "ELIMINAR",
+      entity: "purchase",
+      entityId: purchaseId.toString(),
+      details: `Compra ${purchaseId} eliminada (estado previo: ${purchaseRecord.status})`,
+    }, user.id);
+
+    revalidatePath("/compras");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al eliminar compra" };
   }
 }
 
@@ -1425,6 +1927,7 @@ async function applySkuPurchaseUpdate(
    ============================================================ */
 
 export async function getCustomers() {
+  await requireAuth();
   return await db.select().from(customers);
 }
 
@@ -1447,30 +1950,63 @@ export async function createCustomerAction(name: string, phone: string, notes?: 
 
     revalidatePath("/clientes");
     revalidatePath("/ventas");
-    return { success: true };
+    return { success: true, id: inserted.id };
   } catch (e: any) {
     return { success: false, error: e.message || "Error al crear cliente" };
   }
 }
 
 export async function getSalesAndQuotesData() {
-  const allSales = await db.select().from(sales);
-  const allSaleItems = await db.select().from(saleItems);
-  const allSalePayments = await db.select().from(salePayments);
-  const allQuotes = await db.select().from(quotes);
-  const allQuoteItems = await db.select().from(quoteItems);
-  const allCustomers = await db.select().from(customers);
-  const allPaymentMethods = await db.select().from(paymentMethods);
+  await requireAuth();
+  const [
+    allSales,
+    allSaleItems,
+    allSalePayments,
+    allQuotes,
+    allQuoteItems,
+    allCustomers,
+    allPaymentMethods,
+  ] = await Promise.all([
+    db.select().from(sales),
+    db.select().from(saleItems),
+    db.select().from(salePayments),
+    db.select().from(quotes),
+    db.select().from(quoteItems),
+    db.select().from(customers),
+    db.select().from(paymentMethods),
+  ]);
 
   const customersMap = new Map<number, any>(allCustomers.map((c: any) => [c.id, c]));
   const payMethodsMap = new Map<number, any>(allPaymentMethods.map((pm: any) => [pm.id, pm]));
+  const saleItemsBySale = new Map<number, any[]>();
+  const salePaymentsBySale = new Map<number, any[]>();
+  const quoteItemsByQuote = new Map<number, any[]>();
+
+  for (const item of allSaleItems as any[]) {
+    const list = saleItemsBySale.get(item.saleId) || [];
+    list.push(item);
+    saleItemsBySale.set(item.saleId, list);
+  }
+
+  for (const payment of allSalePayments as any[]) {
+    const list = salePaymentsBySale.get(payment.saleId) || [];
+    list.push(payment);
+    salePaymentsBySale.set(payment.saleId, list);
+  }
+
+  for (const item of allQuoteItems as any[]) {
+    const list = quoteItemsByQuote.get(item.quoteId) || [];
+    list.push(item);
+    quoteItemsByQuote.set(item.quoteId, list);
+  }
 
   const result = [];
+  const today = new Date().toISOString().slice(0, 10);
 
   // Map Sales
   for (const s of allSales as any[]) {
-    const sItems = allSaleItems.filter((item: any) => item.saleId === s.id);
-    const sPayments = allSalePayments.filter((p: any) => p.saleId === s.id);
+    const sItems = saleItemsBySale.get(s.id) || [];
+    const sPayments = salePaymentsBySale.get(s.id) || [];
     const customer = s.customerId ? customersMap.get(s.customerId) : null;
     const itemsCount = sItems.reduce((sum: number, item: any) => sum + item.quantity, 0);
 
@@ -1503,9 +2039,12 @@ export async function getSalesAndQuotesData() {
 
   // Map Quotes
   for (const q of allQuotes as any[]) {
-    const qItems = allQuoteItems.filter((item: any) => item.quoteId === q.id);
+    const qItems = quoteItemsByQuote.get(q.id) || [];
     const customer = q.customerId ? customersMap.get(q.customerId) : null;
     const itemsCount = qItems.reduce((sum: number, item: any) => sum + item.quantity, 0);
+    // Compute-on-read expiry: an open quote past its validUntil is shown as
+    // "Vencida" without mutating the row (validUntil was purely decorative).
+    const isExpired = q.status === "abierta" && !!q.validUntil && q.validUntil < today;
 
     result.push({
       id: q.id,
@@ -1518,18 +2057,37 @@ export async function getSalesAndQuotesData() {
       rateUsed: q.rateUsed,
       rateSource: q.rateSource,
       payMethodSummary: "—",
-      status: q.status === "abierta" ? "Cotización" : q.status === "convertida" ? "Convertida" : q.status === "vencida" ? "Vencida" : "Anulada",
+      status: q.status === "abierta"
+        ? (isExpired ? "Vencida" : "Cotización")
+        : q.status === "convertida" ? "Convertida" : q.status === "vencida" ? "Vencida" : "Anulada",
       type: "cotizacion" as const,
       rawStatus: q.status,
+      isExpired,
+      validUntil: q.validUntil,
     });
   }
 
   // Order by date descending, then by number descending
-  return result.sort((a, b) => {
+  const sorted = result.sort((a, b) => {
     const dCompare = b.date.localeCompare(a.date);
     if (dCompare !== 0) return dCompare;
     return b.number.localeCompare(a.number);
   });
+  return sorted;
+}
+
+async function getOrCreateCreditMethodId(tx: any) {
+  const [existing] = await tx
+    .select()
+    .from(paymentMethods)
+    .where(eq(paymentMethods.name, "Saldo a favor"))
+    .limit(1);
+  if (existing) return existing.id;
+  const [created] = await tx
+    .insert(paymentMethods)
+    .values({ name: "Saldo a favor", currency: "USD", active: true })
+    .returning({ id: paymentMethods.id });
+  return created.id;
 }
 
 export async function createSaleOrQuote(data: {
@@ -1550,6 +2108,7 @@ export async function createSaleOrQuote(data: {
     rateSource?: FxSource;
     reference?: string;
   }[];
+  creditApplied?: number;
   userId?: string;
 }) {
   try {
@@ -1564,7 +2123,7 @@ export async function createSaleOrQuote(data: {
       fallbackRate
     );
 
-    await db.transaction(async (tx: any) => {
+    await runInTx(async (tx: any) => {
       if (data.type === "venta") {
         const nextNeCount = await getNextCounterValue(
           tx,
@@ -1572,6 +2131,10 @@ export async function createSaleOrQuote(data: {
           SYSTEM_DEFAULTS.counters.ne
         );
         const docNumber = `NE-${String(nextNeCount).padStart(5, "0")}`;
+
+        // Validate stock for ALL items up-front: on D1 there is no rollback, so we
+        // must fail before inserting the sale header to avoid orphan documents.
+        await assertStockAvailable(tx, data.items, `la venta ${docNumber}`);
 
         // 2. Insert Sale
         const [saleRecord] = await tx
@@ -1590,8 +2153,6 @@ export async function createSaleOrQuote(data: {
           .returning({ id: sales.id });
 
         // 3. Process items & deduct stock
-        await assertStockAvailable(tx, data.items, `la venta ${docNumber}`);
-
         for (const item of data.items) {
           await tx.insert(saleItems).values({
             saleId: saleRecord.id,
@@ -1600,13 +2161,17 @@ export async function createSaleOrQuote(data: {
             unitPrice: item.unitPrice,
           });
 
-          // Deduct SKU stock
-          await tx
+          // Deduct SKU stock (guarded so it can never drive stock negative)
+          const saleStockDeduct = await tx
             .update(skus)
             .set({
               stock: sql`stock - ${item.quantity}`,
             })
-            .where(eq(skus.id, item.skuId));
+            .where(and(eq(skus.id, item.skuId), gte(skus.stock, item.quantity)))
+            .returning({ id: skus.id });
+          if (saleStockDeduct.length === 0) {
+            throw new Error(`Stock insuficiente para el SKU ${item.skuId} durante la venta.`);
+          }
 
           // Log adjustment (kardex)
           await tx.insert(stockAdjustments).values({
@@ -1632,6 +2197,56 @@ export async function createSaleOrQuote(data: {
             });
           }
         }
+
+        // 5. Apply customer store credit ("saldo a favor"), if requested.
+        if (data.creditApplied && data.creditApplied > 0) {
+          if (!data.customerId) {
+            throw new Error("Para aplicar saldo a favor debe seleccionar un cliente.");
+          }
+          const [cust] = await tx.select().from(customers).where(eq(customers.id, data.customerId)).limit(1);
+          if (!cust) throw new Error("Cliente no encontrado para aplicar saldo a favor.");
+          const creditToApply = Math.min(data.creditApplied, cust.creditBalance, data.totalUsd);
+          if (data.creditApplied > cust.creditBalance + 0.01) {
+            throw new Error(
+              `Saldo a favor insuficiente. Disponible: ${cust.creditBalance.toFixed(2)} USD.`
+            );
+          }
+          if (creditToApply > 0) {
+            const creditMethodId = await getOrCreateCreditMethodId(tx);
+            await tx.insert(salePayments).values({
+              saleId: saleRecord.id,
+              methodId: creditMethodId,
+              amountUsd: creditToApply,
+              currency: "USD",
+              amountOriginal: creditToApply,
+              rateUsed: 1,
+              rateSource: "manual",
+              reference: "Saldo a favor",
+            });
+            await tx
+              .update(customers)
+              .set({ creditBalance: sql`${customers.creditBalance} - ${creditToApply}` })
+              .where(eq(customers.id, data.customerId));
+          }
+        }
+
+        // 6. Audit the sale, flagging below-cost sales (total < COGS).
+        const saleItemSkuIds = Array.from(new Set(data.items.map((i) => i.skuId)));
+        const costRows = saleItemSkuIds.length > 0
+          ? await tx.select({ id: skus.id, avgCost: skus.avgCost }).from(skus).where(inArray(skus.id, saleItemSkuIds))
+          : [];
+        const costMap = new Map<number, number>(costRows.map((r: any) => [r.id, r.avgCost]));
+        const cogs = data.items.reduce((sum, it) => sum + it.quantity * (costMap.get(it.skuId) || 0), 0);
+        const belowCost = cogs > 0 && data.totalUsd < cogs - 0.01;
+        await logAuditAction(
+          {
+            action: belowCost ? "VENTA_BAJO_COSTO" : "CREAR",
+            entity: "sale",
+            entityId: saleRecord.id.toString(),
+            details: `Venta ${docNumber} · total $${data.totalUsd.toFixed(2)}${belowCost ? ` · ⚠ por debajo del costo ($${cogs.toFixed(2)})` : ""}`,
+          },
+          resolvedUserId
+        );
       } else {
         // It's a Cotización (Quote)
         const nextCotCount = await getNextCounterValue(
@@ -1670,6 +2285,10 @@ export async function createSaleOrQuote(data: {
       }
     });
 
+    if (data.type === "venta") {
+      await notifyAdminsNewSale();
+    }
+
     revalidatePath("/ventas");
     revalidatePath("/inventario");
     revalidatePath("/");
@@ -1705,7 +2324,7 @@ export async function convertQuoteToSaleAction(
       fallbackRate
     );
 
-    await db.transaction(async (tx: any) => {
+    await runInTx(async (tx: any) => {
       const [quoteRecord] = await tx
         .select()
         .from(quotes)
@@ -1754,13 +2373,17 @@ export async function convertQuoteToSaleAction(
           unitPrice: item.unitPrice,
         });
 
-        // Deduct stock
-        await tx
+        // Deduct stock (guarded against negative stock)
+        const convertStockDeduct = await tx
           .update(skus)
           .set({
             stock: sql`stock - ${item.quantity}`,
           })
-          .where(eq(skus.id, item.skuId));
+          .where(and(eq(skus.id, item.skuId), gte(skus.stock, item.quantity)))
+          .returning({ id: skus.id });
+        if (convertStockDeduct.length === 0) {
+          throw new Error(`Stock insuficiente para el SKU ${item.skuId} al convertir la cotización.`);
+        }
 
         // Log adjustment
         await tx.insert(stockAdjustments).values({
@@ -1793,7 +2416,27 @@ export async function convertQuoteToSaleAction(
           convertedToSaleId: saleRecord.id,
         })
         .where(eq(quotes.id, quoteId));
+
+      // Audit the resulting sale, flagging below-cost.
+      const convSkuIds: number[] = Array.from(new Set(qItems.map((i: any) => i.skuId as number)));
+      const convCostRows = convSkuIds.length > 0
+        ? await tx.select({ id: skus.id, avgCost: skus.avgCost }).from(skus).where(inArray(skus.id, convSkuIds))
+        : [];
+      const convCostMap = new Map<number, number>(convCostRows.map((r: any) => [r.id, r.avgCost]));
+      const convCogs = qItems.reduce((sum: number, it: any) => sum + it.quantity * (convCostMap.get(it.skuId) || 0), 0);
+      const convBelowCost = convCogs > 0 && quoteRecord.totalUsd < convCogs - 0.01;
+      await logAuditAction(
+        {
+          action: convBelowCost ? "VENTA_BAJO_COSTO" : "CREAR",
+          entity: "sale",
+          entityId: saleRecord.id.toString(),
+          details: `Venta ${docNumber} (conversión ${quoteRecord.number}) · total $${quoteRecord.totalUsd.toFixed(2)}${convBelowCost ? ` · ⚠ por debajo del costo ($${convCogs.toFixed(2)})` : ""}`,
+        },
+        resolvedUserId
+      );
     });
+
+    await notifyAdminsNewSale();
 
     revalidatePath("/ventas");
     revalidatePath("/inventario");
@@ -1804,11 +2447,112 @@ export async function convertQuoteToSaleAction(
   }
 }
 
+export async function anularQuoteAction(quoteId: number) {
+  try {
+    await requireAuth();
+    const [quote] = await db.select().from(quotes).where(eq(quotes.id, quoteId)).limit(1);
+    if (!quote) {
+      return { success: false, error: "Cotización no encontrada" };
+    }
+    if (quote.status !== "abierta") {
+      return { success: false, error: "Solo se pueden anular cotizaciones abiertas." };
+    }
+
+    await db.update(quotes).set({ status: "anulada" }).where(eq(quotes.id, quoteId));
+
+    revalidatePath("/ventas");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al anular cotización" };
+  }
+}
+
+export async function deleteQuoteAction(quoteId: number) {
+  try {
+    const { user } = await requireStaff();
+    const [q] = await db.select().from(quotes).where(eq(quotes.id, quoteId)).limit(1);
+    if (!q) return { success: false, error: "Cotización no encontrada" };
+    if (q.status === "convertida") {
+      return { success: false, error: "No se puede eliminar una cotización ya convertida en venta." };
+    }
+    await runInTx(async (tx: any) => {
+      await tx.delete(quoteItems).where(eq(quoteItems.quoteId, quoteId));
+      await tx.delete(quotes).where(eq(quotes.id, quoteId));
+    });
+    await logAuditAction(
+      { action: "ELIMINAR", entity: "quote", entityId: quoteId.toString(), details: `Cotización ${q.number} eliminada` },
+      user.id
+    );
+    revalidatePath("/ventas");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al eliminar cotización" };
+  }
+}
+
+export async function voidSaleAction(saleId: number) {
+  try {
+    const { user } = await requireStaff();
+
+    await runInTx(async (tx: any) => {
+      const [sale] = await tx.select().from(sales).where(eq(sales.id, saleId)).limit(1);
+      if (!sale) throw new Error("Venta no encontrada");
+      if (sale.status === "anulada") throw new Error("La venta ya está anulada");
+
+      // Block if the sale has active returns/exchanges — their stock/credit was
+      // already restored, so voiding too would double-count.
+      const saleReturns = await tx
+        .select()
+        .from(returns)
+        .where(and(eq(returns.saleId, saleId), sql`${returns.status} != 'anulada'`));
+      if (saleReturns.length > 0) {
+        throw new Error(
+          "No se puede anular: la venta tiene devoluciones/cambios asociados. Anule primero las devoluciones."
+        );
+      }
+
+      const items = await tx.select().from(saleItems).where(eq(saleItems.saleId, saleId));
+      for (const item of items) {
+        await tx
+          .update(skus)
+          .set({ stock: sql`stock + ${item.quantity}` })
+          .where(eq(skus.id, item.skuId));
+        await tx.insert(stockAdjustments).values({
+          skuId: item.skuId,
+          quantity: item.quantity,
+          reason: `Anulación venta ${sale.number}`,
+          userId: user.id,
+        });
+      }
+
+      await tx.update(sales).set({ status: "anulada" }).where(eq(sales.id, saleId));
+    });
+
+    await logAuditAction(
+      {
+        action: "ANULAR",
+        entity: "sale",
+        entityId: saleId.toString(),
+        details: `Venta ${saleId} anulada y stock repuesto`,
+      },
+      user.id
+    );
+
+    revalidatePath("/ventas");
+    revalidatePath("/inventario");
+    revalidatePath("/");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al anular venta" };
+  }
+}
+
 /* ============================================================
    CRM / Customers Actions (S6)
    ============================================================ */
 
 export async function getCustomersDetailList() {
+  await requireAuth();
   const allCustomers = await db.select().from(customers);
   const allSales = await db.select().from(sales);
   const allSaleItems = await db
@@ -1911,7 +2655,6 @@ export async function getCustomersDetailList() {
       hist: historyList.map(h => [h.number, h.date, h.quantityText, h.totalUsd]),
     });
   }
-
   return result;
 }
 
@@ -1943,11 +2686,28 @@ export async function updateCustomerAction(id: number, name: string, phone: stri
   }
 }
 
+export async function deleteCustomerAction(id: number) {
+  try {
+    await requireStaff();
+    const [refSale] = await db.select({ id: sales.id }).from(sales).where(eq(sales.customerId, id)).limit(1);
+    if (refSale) return { success: false, error: "No se puede eliminar: el cliente tiene ventas asociadas." };
+    const [refQuote] = await db.select({ id: quotes.id }).from(quotes).where(eq(quotes.customerId, id)).limit(1);
+    if (refQuote) return { success: false, error: "No se puede eliminar: el cliente tiene cotizaciones asociadas." };
+    await db.delete(customers).where(eq(customers.id, id));
+    revalidatePath("/clientes");
+    revalidatePath("/ventas");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al eliminar cliente" };
+  }
+}
+
 /* ============================================================
    Returns / Devoluciones Actions (S6)
    ============================================================ */
 
 export async function getReturnsData() {
+  await requireAuth();
   const allReturns = await db.select().from(returns);
   const allSales = await db.select().from(sales);
   const allCustomers = await db.select().from(customers);
@@ -2041,7 +2801,7 @@ export async function createReturnAction(data: {
     }
 
     let docNumber = "";
-    await db.transaction(async (tx: any) => {
+    await runInTx(async (tx: any) => {
       const nextDvCount = await getNextCounterValue(
         tx,
         SETTINGS_KEYS.returnCounter,
@@ -2094,12 +2854,16 @@ export async function createReturnAction(data: {
         });
 
         if (replacementForItem && replacementForItem.quantity > 0) {
-          await tx
+          const replacementDeduct = await tx
             .update(skus)
             .set({
               stock: sql`stock - ${replacementForItem.quantity}`,
             })
-            .where(eq(skus.id, replacementForItem.replacementSkuId));
+            .where(and(eq(skus.id, replacementForItem.replacementSkuId), gte(skus.stock, replacementForItem.quantity)))
+            .returning({ id: skus.id });
+          if (replacementDeduct.length === 0) {
+            throw new Error(`Stock insuficiente para el SKU de cambio ${replacementForItem.replacementSkuId}.`);
+          }
 
           await tx.insert(stockAdjustments).values({
             skuId: replacementForItem.replacementSkuId,
@@ -2135,7 +2899,7 @@ export async function createReturnAction(data: {
         entity: "return",
         entityId: returnRecord.id.toString(),
         details: `Devolución/Cambio ${docNumber} (${data.type}) creado para Venta ID: ${data.saleId} por motivo: ${data.reason}`,
-      });
+      }, user.id);
     });
 
     revalidatePath("/devoluciones");
@@ -2148,18 +2912,103 @@ export async function createReturnAction(data: {
   }
 }
 
+export async function anularReturnAction(returnId: number) {
+  try {
+    const { user } = await requireStaff();
+    await runInTx(async (tx: any) => {
+      const [ret] = await tx.select().from(returns).where(eq(returns.id, returnId)).limit(1);
+      if (!ret) throw new Error("Devolución no encontrada");
+      if (ret.status === "anulada") throw new Error("La devolución ya está anulada");
+
+      const items = await tx.select().from(returnItems).where(eq(returnItems.returnId, returnId));
+      let totalRefund = 0;
+      for (const it of items) {
+        // Reverse the stock that the return re-added.
+        const dec = await tx
+          .update(skus)
+          .set({ stock: sql`stock - ${it.quantity}` })
+          .where(and(eq(skus.id, it.skuId), gte(skus.stock, it.quantity)))
+          .returning({ id: skus.id });
+        if (dec.length === 0) {
+          throw new Error(`No se puede anular: stock insuficiente para revertir el SKU ${it.skuId} (posiblemente ya se vendió).`);
+        }
+        await tx.insert(stockAdjustments).values({
+          skuId: it.skuId,
+          quantity: -it.quantity,
+          reason: `Anulación devolución ${ret.reference}`,
+          userId: user.id,
+        });
+
+        // Give back any replacement stock the exchange deducted.
+        if (it.replacementSkuId && (it.replacementQuantity || 0) > 0) {
+          await tx.update(skus).set({ stock: sql`stock + ${it.replacementQuantity}` }).where(eq(skus.id, it.replacementSkuId));
+          await tx.insert(stockAdjustments).values({
+            skuId: it.replacementSkuId,
+            quantity: it.replacementQuantity,
+            reason: `Anulación cambio ${ret.reference}`,
+            userId: user.id,
+          });
+        }
+        totalRefund += it.quantity * it.unitPrice;
+      }
+
+      // Reverse customer store credit granted by a devolución (floored at 0).
+      if (ret.type === "devolucion" && totalRefund > 0) {
+        const [sale] = await tx.select().from(sales).where(eq(sales.id, ret.saleId)).limit(1);
+        if (sale?.customerId) {
+          await tx
+            .update(customers)
+            .set({ creditBalance: sql`MAX(0, ${customers.creditBalance} - ${totalRefund})` })
+            .where(eq(customers.id, sale.customerId));
+        }
+      }
+
+      await tx.update(returns).set({ status: "anulada" }).where(eq(returns.id, returnId));
+    });
+
+    await logAuditAction(
+      { action: "ANULAR", entity: "return", entityId: returnId.toString(), details: "Devolución anulada y stock revertido" },
+      user.id
+    );
+    revalidatePath("/devoluciones");
+    revalidatePath("/clientes");
+    revalidatePath("/inventario");
+    revalidatePath("/");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al anular devolución" };
+  }
+}
+
 /* ============================================================
    Consignments / Consignación Actions (S7)
    ============================================================ */
 
 export async function getConsigneesData() {
-  const allConsignees = await db.select().from(consignees);
-  const allLots = await db.select().from(consignmentLots);
-  const allItems = await db.select().from(consignmentItems);
+  await requireAuth();
+  const [allConsignees, allLots, allItems] = await Promise.all([
+    db.select().from(consignees),
+    db.select().from(consignmentLots),
+    db.select().from(consignmentItems),
+  ]);
+  const lotsByConsignee = new Map<number, any[]>();
+  const itemsByLot = new Map<number, any[]>();
+
+  for (const lot of allLots as any[]) {
+    const list = lotsByConsignee.get(lot.consigneeId) || [];
+    list.push(lot);
+    lotsByConsignee.set(lot.consigneeId, list);
+  }
+
+  for (const item of allItems as any[]) {
+    const list = itemsByLot.get(item.lotId) || [];
+    list.push(item);
+    itemsByLot.set(item.lotId, list);
+  }
 
   const result = [];
   for (const c of allConsignees) {
-    const cLots = allLots.filter((l: any) => l.consigneeId === c.id);
+    const cLots = lotsByConsignee.get(c.id) || [];
     
     let totalEntregados = 0;
     let totalVendidos = 0;
@@ -2172,7 +3021,7 @@ export async function getConsigneesData() {
     const computedLots = [];
     
     for (const lot of cLots) {
-      const lotItems = allItems.filter((item: any) => item.lotId === lot.id);
+      const lotItems = itemsByLot.get(lot.id) || [];
       const metrics = calculateConsignmentLotMetrics(lot, lotItems);
 
       totalEntregados += metrics.deliveredUnits;
@@ -2210,12 +3059,11 @@ export async function getConsigneesData() {
       lots: computedLots,
     });
   }
-
   return result;
 }
 
 export async function getConsignmentLotDetailAction(lotId: number) {
-  await requireAdmin();
+  await requireStaff();
   const snapshot = await getConsignmentLotSnapshot(db, lotId);
 
   return {
@@ -2246,7 +3094,7 @@ export async function getConsignmentLotDetailAction(lotId: number) {
 
 export async function createConsigneeAction(name: string, contact: string, location: string) {
   try {
-    await requireAdmin();
+    await requireStaff();
     await db.insert(consignees).values({
       name,
       contact,
@@ -2259,16 +3107,40 @@ export async function createConsigneeAction(name: string, contact: string, locat
   }
 }
 
+export async function updateConsigneeAction(id: number, name: string, contact: string, location: string) {
+  try {
+    await requireStaff();
+    await db.update(consignees).set({ name, contact, location }).where(eq(consignees.id, id));
+    revalidatePath("/consignacion");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al actualizar consignataria" };
+  }
+}
+
+export async function deleteConsigneeAction(id: number) {
+  try {
+    await requireStaff();
+    const [ref] = await db.select({ id: consignmentLots.id }).from(consignmentLots).where(eq(consignmentLots.consigneeId, id)).limit(1);
+    if (ref) return { success: false, error: "No se puede eliminar: la consignataria tiene lotes asociados." };
+    await db.delete(consignees).where(eq(consignees.id, id));
+    revalidatePath("/consignacion");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al eliminar consignataria" };
+  }
+}
+
 export async function createConsignmentLotAction(data: {
   consigneeId: number;
   date: string;
   items: { skuId: number; quantity: number; unitPrice: number }[];
 }) {
   try {
-    const { user } = await requireAdmin();
+    const { user } = await requireStaff();
     const userId = user.id;
 
-    await db.transaction(async (tx: any) => {
+    await runInTx(async (tx: any) => {
       // 1. Calculate lot total value
       const totalUsd = data.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
       await assertStockAvailable(tx, data.items, "la consignación");
@@ -2296,13 +3168,17 @@ export async function createConsignmentLotAction(data: {
           returnedQuantity: 0,
         });
 
-        // Deduct stock from main inventory
-        await tx
+        // Deduct stock from main inventory (guarded against negative stock)
+        const consignStockDeduct = await tx
           .update(skus)
           .set({
             stock: sql`stock - ${item.quantity}`,
           })
-          .where(eq(skus.id, item.skuId));
+          .where(and(eq(skus.id, item.skuId), gte(skus.stock, item.quantity)))
+          .returning({ id: skus.id });
+        if (consignStockDeduct.length === 0) {
+          throw new Error(`Stock insuficiente para el SKU ${item.skuId} en la consignación.`);
+        }
 
         // Log stock adjustment (kardex)
         await tx.insert(stockAdjustments).values({
@@ -2328,13 +3204,13 @@ export async function liquidateConsignmentItemsAction(data: {
   items: { consignmentItemId: number; quantity: number }[];
 }) {
   try {
-    await requireAdmin();
+    await requireStaff();
     const validItems = data.items.filter((item) => item.quantity > 0);
     if (validItems.length === 0) {
       throw new Error("Debes indicar al menos una unidad liquidada.");
     }
 
-    await db.transaction(async (tx: any) => {
+    await runInTx(async (tx: any) => {
       const snapshot = await getConsignmentLotSnapshot(tx, data.lotId);
       const itemsById = new Map<number, any>(snapshot.items.map((item: any) => [item.id, item]));
 
@@ -2373,13 +3249,13 @@ export async function returnConsignmentItemsAction(data: {
   items: { consignmentItemId: number; quantity: number }[];
 }) {
   try {
-    const { user } = await requireAdmin();
+    const { user } = await requireStaff();
     const validItems = data.items.filter((item) => item.quantity > 0);
     if (validItems.length === 0) {
       throw new Error("Debes indicar al menos una unidad a devolver.");
     }
 
-    await db.transaction(async (tx: any) => {
+    await runInTx(async (tx: any) => {
       const snapshot = await getConsignmentLotSnapshot(tx, data.lotId);
       const itemsById = new Map<number, any>(snapshot.items.map((item: any) => [item.id, item]));
 
@@ -2428,22 +3304,80 @@ export async function returnConsignmentItemsAction(data: {
   }
 }
 
-export async function addConsignmentPaymentAction(
-  lotId: number,
-  methodId: number,
-  amountUsd: number,
-  reference?: string
-) {
+export async function deleteConsignmentLotAction(lotId: number) {
   try {
-    await requireAdmin();
+    const { user } = await requireStaff();
+    await runInTx(async (tx: any) => {
+      const [lot] = await tx.select().from(consignmentLots).where(eq(consignmentLots.id, lotId)).limit(1);
+      if (!lot) throw new Error("Lote no encontrado");
+      const [pay] = await tx.select().from(consignmentPayments).where(eq(consignmentPayments.lotId, lotId)).limit(1);
+      if (pay || lot.paidUsd > 0) throw new Error("No se puede eliminar: el lote tiene abonos registrados.");
+
+      const items = await tx.select().from(consignmentItems).where(eq(consignmentItems.lotId, lotId));
+      const hasActivity = items.some((i: any) => (i.liquidatedQuantity || 0) > 0 || (i.returnedQuantity || 0) > 0);
+      if (hasActivity) {
+        throw new Error("No se puede eliminar: el lote ya tiene liquidaciones o devoluciones registradas.");
+      }
+
+      // Lot creation deducted stock — reincorporate it.
+      for (const it of items) {
+        await tx.update(skus).set({ stock: sql`stock + ${it.quantity}` }).where(eq(skus.id, it.skuId));
+        await tx.insert(stockAdjustments).values({
+          skuId: it.skuId,
+          quantity: it.quantity,
+          reason: `Eliminación lote consignación #${lotId}`,
+          userId: user.id,
+        });
+      }
+      await tx.delete(consignmentItems).where(eq(consignmentItems.lotId, lotId));
+      await tx.delete(consignmentLots).where(eq(consignmentLots.id, lotId));
+    });
+
+    await logAuditAction(
+      { action: "ELIMINAR", entity: "consignment_lot", entityId: lotId.toString(), details: "Lote de consignación eliminado y stock reincorporado" },
+      user.id
+    );
+    revalidatePath("/consignacion");
+    revalidatePath("/inventario");
+    revalidatePath("/");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al eliminar lote de consignación" };
+  }
+}
+
+export async function addConsignmentPaymentAction(data: {
+  lotId: number;
+  methodId: number;
+  amountUsd: number;
+  currency?: string;
+  amountOriginal?: number;
+  rateUsed?: number;
+  rateSource?: FxSource;
+  reference?: string;
+}) {
+  try {
+    await requireStaff();
     const today = new Date().toISOString().slice(0, 10);
 
-    await db.transaction(async (tx: any) => {
-      const snapshotBeforePayment = await getConsignmentLotSnapshot(tx, lotId);
+    // Symmetric Bolívar handling with sales/expenses: if paid in Bs, derive the
+    // USD-equivalent from the original amount and the per-transaction rate.
+    const currency = (data.currency || "USD").trim().toUpperCase();
+    const originalAmount = data.amountOriginal ?? data.amountUsd;
+    const fallbackRate = await getTransactionRate(data.rateSource === "bcv" ? "bcv" : "paralelo");
+    const resolvedRateUsed = isBolivarCurrency(currency)
+      ? normalizeTransactionRate(data.rateSource || "paralelo", data.rateUsed || fallbackRate, fallbackRate)
+      : 1;
+    const resolvedAmountUsd = isBolivarCurrency(currency)
+      ? convertToUsd(originalAmount, currency, resolvedRateUsed)
+      : data.amountUsd;
+
+    await runInTx(async (tx: any) => {
+      const snapshotBeforePayment = await getConsignmentLotSnapshot(tx, data.lotId);
       if (snapshotBeforePayment.debtUsd <= 0) {
         throw new Error("No hay saldo liquidado pendiente por abonar en este lote.");
       }
-      if (amountUsd > snapshotBeforePayment.debtUsd) {
+      if (resolvedAmountUsd > snapshotBeforePayment.debtUsd + 0.01) {
         throw new Error(
           `El abono excede el saldo pendiente del lote. Máximo permitido: ${snapshotBeforePayment.debtUsd.toFixed(2)} USD.`
         );
@@ -2451,22 +3385,26 @@ export async function addConsignmentPaymentAction(
 
       // 1. Insert Payment
       await tx.insert(consignmentPayments).values({
-        lotId,
-        methodId,
-        amountUsd,
+        lotId: data.lotId,
+        methodId: data.methodId,
+        amountUsd: resolvedAmountUsd,
+        currency,
+        amountOriginal: originalAmount,
+        rateUsed: resolvedRateUsed,
+        rateSource: isBolivarCurrency(currency) ? (data.rateSource || "paralelo") : "manual",
         date: today,
-        reference: reference || "",
+        reference: data.reference || "",
       });
 
       // 2. Update paid amount and recompute status from liquidated units
       await tx
         .update(consignmentLots)
         .set({
-          paidUsd: sql`${consignmentLots.paidUsd} + ${amountUsd}`,
+          paidUsd: sql`${consignmentLots.paidUsd} + ${resolvedAmountUsd}`,
         })
-        .where(eq(consignmentLots.id, lotId));
+        .where(eq(consignmentLots.id, data.lotId));
 
-      await syncConsignmentLotStatus(tx, lotId);
+      await syncConsignmentLotStatus(tx, data.lotId);
     });
 
     revalidatePath("/consignacion");
@@ -2482,7 +3420,7 @@ export async function addConsignmentPaymentAction(
    ============================================================ */
 
 export async function getExpensesData() {
-  await requireAdmin();
+  await requireStaff();
   const allExpenses = await db.select().from(expenses);
   const allCategories = await db.select().from(categories).where(eq(categories.type, "expense"));
 
@@ -2519,12 +3457,13 @@ export async function getExpensesData() {
     };
   }).reverse();
 
-  return {
+  const result = {
     expensesList: formattedExpenses,
     categoriesBreakdown: breakdown,
     totalExpenses: total,
     expenseCategories: allCategories,
   };
+  return result;
 }
 
 export async function createExpenseAction(data: {
@@ -2538,7 +3477,7 @@ export async function createExpenseAction(data: {
   rateSource?: FxSource;
 }) {
   try {
-    await requireAdmin();
+    await requireStaff();
     const currency = (data.currency || "USD").trim().toUpperCase();
     const originalAmount = data.amountOriginal ?? data.amountUsd;
     const fallbackRate = await getTransactionRate(
@@ -2574,11 +3513,85 @@ export async function createExpenseAction(data: {
   }
 }
 
+export async function deleteExpenseAction(id: number) {
+  try {
+    const { user } = await requireStaff();
+    const [existing] = await db.select().from(expenses).where(eq(expenses.id, id)).limit(1);
+    if (!existing) {
+      return { success: false, error: "Gasto no encontrado" };
+    }
+
+    await db.delete(expenses).where(eq(expenses.id, id));
+
+    await logAuditAction(
+      {
+        action: "ELIMINAR",
+        entity: "expense",
+        entityId: id.toString(),
+        details: `Gasto eliminado: ${existing.note} (USD ${existing.amountUsd.toFixed(2)})`,
+      },
+      user.id
+    );
+
+    revalidatePath("/gastos");
+    revalidatePath("/");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al eliminar gasto" };
+  }
+}
+
+export async function updateExpenseAction(data: {
+  id: number;
+  date: string;
+  note: string;
+  categoryId: number;
+  amountUsd: number;
+  currency?: string;
+  amountOriginal?: number;
+  rateUsed?: number;
+  rateSource?: FxSource;
+}) {
+  try {
+    await requireStaff();
+    const currency = (data.currency || "USD").trim().toUpperCase();
+    const originalAmount = data.amountOriginal ?? data.amountUsd;
+    const fallbackRate = await getTransactionRate(data.rateSource === "bcv" ? "bcv" : "paralelo");
+    const resolvedRateUsed = isBolivarCurrency(currency)
+      ? normalizeTransactionRate(data.rateSource || "paralelo", data.rateUsed || fallbackRate, fallbackRate)
+      : 1;
+    const resolvedAmountUsd = isBolivarCurrency(currency)
+      ? convertToUsd(originalAmount, currency, resolvedRateUsed)
+      : data.amountUsd;
+
+    await db
+      .update(expenses)
+      .set({
+        date: data.date,
+        note: data.note,
+        categoryId: data.categoryId,
+        amountUsd: resolvedAmountUsd,
+        currency,
+        amountOriginal: originalAmount,
+        rateUsed: resolvedRateUsed,
+        rateSource: isBolivarCurrency(currency) ? (data.rateSource || "paralelo") : "manual",
+      })
+      .where(eq(expenses.id, data.id));
+
+    revalidatePath("/gastos");
+    revalidatePath("/");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al actualizar gasto" };
+  }
+}
+
 /* ============================================================
    Shipments / Despachos Actions (S8)
    ============================================================ */
 
 export async function getShipmentsData() {
+  await requireAuth();
   const allShipments = await db.select().from(shipments);
   const allSales = await db.select().from(sales);
   const allCarriers = await db.select().from(carriers);
@@ -2586,7 +3599,7 @@ export async function getShipmentsData() {
   const salesMap = new Map<number, any>(allSales.map((s: any) => [s.id, s]));
   const carriersMap = new Map<number, any>(allCarriers.map((c: any) => [c.id, c]));
 
-  return allShipments.map((s: any) => {
+  const result = allShipments.map((s: any) => {
     const sale = salesMap.get(s.saleId);
     const carrier = carriersMap.get(s.carrierId);
     return {
@@ -2601,6 +3614,7 @@ export async function getShipmentsData() {
       rawStatus: s.status,
     };
   }).reverse();
+  return result;
 }
 
 export async function createShipmentAction(data: {
@@ -2646,8 +3660,27 @@ export async function updateShipmentStatusAction(id: number, status: "pendiente"
   }
 }
 
+export async function deleteShipmentAction(id: number) {
+  try {
+    const { user } = await requireStaff();
+    const [s] = await db.select().from(shipments).where(eq(shipments.id, id)).limit(1);
+    if (!s) return { success: false, error: "Despacho no encontrado" };
+    await db.delete(shipments).where(eq(shipments.id, id));
+    await logAuditAction(
+      { action: "ELIMINAR", entity: "shipment", entityId: id.toString(), details: `Despacho ${s.trackingNumber} eliminado` },
+      user.id
+    );
+    revalidatePath("/despachos");
+    revalidatePath("/");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al eliminar despacho" };
+  }
+}
+
 export async function getSaleItemsAction(saleId: number) {
   try {
+    await requireAuth();
     return await db
       .select({
         id: saleItems.id,
@@ -2666,25 +3699,44 @@ export async function getSaleItemsAction(saleId: number) {
 }
 
 export async function getDashboardData() {
+  const { user } = await requireAuth();
+  // The "usuario" role has no access to dashboard metrics.
+  if (user.role === "usuario") return null;
   try {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, "0");
     const startOfMonth = `${year}-${month}-01`;
 
-    // 1. Fetch tables (filtered to current month for dynamic metrics to avoid loading thousands of rows)
-    const allSales = await db.select().from(sales).where(gte(sales.date, startOfMonth));
-    const allExpenses = await db.select().from(expenses).where(gte(expenses.date, startOfMonth));
-    const allQuotes = await db.select().from(quotes).where(gte(quotes.date, startOfMonth));
-    const allReturns = await db.select().from(returns).where(gte(returns.createdAt, startOfMonth));
-    
-    // We only need pending shipments for the indicator
-    const allShipments = await db.select().from(shipments).where(eq(shipments.status, "pendiente"));
-    
-    // We only need active consignment lots for the outstanding debt calculation
-    const allLots = await db.select().from(consignmentLots).where(or(eq(consignmentLots.status, "pendiente"), eq(consignmentLots.status, "pago_parcial")));
+    const [allSales, allExpenses, allQuotes, allReturns, allShipments, allLots, allPaymentMethods, inventoryAggRows] = await Promise.all([
+      db.select().from(sales).where(and(gte(sales.date, startOfMonth), ne(sales.status, "anulada"))),
+      db.select().from(expenses).where(gte(expenses.date, startOfMonth)),
+      db.select().from(quotes).where(gte(quotes.date, startOfMonth)),
+      db.select().from(returns).where(gte(returns.createdAt, startOfMonth)),
+      db.select().from(shipments).where(eq(shipments.status, "pendiente")),
+      db.select().from(consignmentLots).where(or(eq(consignmentLots.status, "pendiente"), eq(consignmentLots.status, "pago_parcial"))),
+      db.select().from(paymentMethods),
+      // Inventory valuation (cost), units in stock, value at sale price, and
+      // zero-stock count — all computed in SQL (one row).
+      db
+        .select({
+          valuation: sql<number>`COALESCE(SUM(${skus.stock} * ${skus.avgCost}), 0)`,
+          units: sql<number>`COALESCE(SUM(${skus.stock}), 0)`,
+          retail: sql<number>`COALESCE(SUM(${skus.stock} * COALESCE(${skus.priceOverride}, ${models.basePrice})), 0)`,
+          zeroCount: sql<number>`COALESCE(SUM(CASE WHEN ${skus.stock} <= 0 THEN 1 ELSE 0 END), 0)`,
+        })
+        .from(skus)
+        .innerJoin(models, eq(skus.modelId, models.id)),
+    ]);
+
+    const inventoryValuation = Number(inventoryAggRows[0]?.valuation || 0);
+    const inventoryUnits = Number(inventoryAggRows[0]?.units || 0);
+    const inventoryRetail = Number(inventoryAggRows[0]?.retail || 0);
+    const inventoryPotentialMargin = inventoryRetail - inventoryValuation;
+    const skusCeroCount = Number(inventoryAggRows[0]?.zeroCount || 0);
+
     const activeLotIds = allLots.map((l: any) => l.id);
-    const allItems = activeLotIds.length > 0 
+    const allItems = activeLotIds.length > 0
       ? await db.select().from(consignmentItems).where(inArray(consignmentItems.lotId, activeLotIds))
       : [];
 
@@ -2697,14 +3749,34 @@ export async function getDashboardData() {
       ? await db.select().from(saleItems).where(inArray(saleItems.saleId, monthlySaleIds))
       : [];
 
-    // Skus, models, and metadata are needed globally
-    const allSkus = await db.select().from(skus);
-    const allModels = await db.select().from(models);
-    const allPaymentMethods = await db.select().from(paymentMethods);
+    // Only load the SKUs (with model name) actually referenced by this month's
+    // sale items — for COGS and top-products — instead of the whole catalog.
+    const saleItemSkuIds: number[] = Array.from(new Set(allSaleItems.map((i: any) => i.skuId as number)));
+    const cogsRows = saleItemSkuIds.length > 0
+      ? await db
+          .select({ id: skus.id, avgCost: skus.avgCost, modelId: skus.modelId, modelName: models.name })
+          .from(skus)
+          .innerJoin(models, eq(skus.modelId, models.id))
+          .where(inArray(skus.id, saleItemSkuIds))
+      : [];
+    const skusMap = new Map<number, any>(cogsRows.map((s: any) => [s.id, s]));
 
-    const modelsMap = new Map<string, string>(allModels.map((m: any) => [m.id, m.name]));
-    const skusMap = new Map<number, any>(allSkus.map((s: any) => [s.id, s]));
+    // Lowest-stock SKUs, bounded in SQL using the configured threshold.
+    const lowSkusRows = await db
+      .select({ compositeCode: skus.compositeCode, stock: skus.stock, modelName: models.name })
+      .from(skus)
+      .innerJoin(models, eq(skus.modelId, models.id))
+      .where(lte(skus.stock, models.lowStockThreshold))
+      .orderBy(skus.stock)
+      .limit(5);
+
     const payMethodsMap = new Map<number, any>(allPaymentMethods.map((pm: any) => [pm.id, pm]));
+    const itemsByLot = new Map<number, any[]>();
+    for (const item of allItems as any[]) {
+      const list = itemsByLot.get(item.lotId) || [];
+      list.push(item);
+      itemsByLot.set(item.lotId, list);
+    }
 
     // KPIs
     const totalVentasUsd = allSales.reduce((sum: number, s: any) => sum + s.totalUsd, 0);
@@ -2712,12 +3784,14 @@ export async function getDashboardData() {
 
     const totalGastosUsd = allExpenses.reduce((sum: number, e: any) => sum + e.amountUsd, 0);
 
-    // Deuda consignación
+    // Deuda + ingresos liquidados de consignación (lotes activos).
     let totalDeudaCons = 0;
+    let totalConsignLiquidatedUsd = 0;
     for (const lot of allLots) {
-      const lotItems = allItems.filter((item: any) => item.lotId === lot.id);
+      const lotItems = itemsByLot.get(lot.id) || [];
       const metrics = calculateConsignmentLotMetrics(lot, lotItems);
       totalDeudaCons += metrics.debtUsd;
+      totalConsignLiquidatedUsd += metrics.liquidatedValue;
     }
 
     // Cost of Goods Sold (COGS)
@@ -2731,15 +3805,6 @@ export async function getDashboardData() {
     const netProfit = totalVentasUsd - totalCogs - totalGastosUsd;
     const marginPct = totalVentasUsd > 0 ? (netProfit / totalVentasUsd) * 100 : 0;
 
-    // Inventory value (asset valuation)
-    const inventoryValuation = allSkus.reduce((sum: number, s: any) => sum + (s.stock * s.avgCost), 0);
-
-    // Zero stock count
-    let skusCeroCount = 0;
-    allSkus.forEach((s: any) => {
-      if (s.stock <= 0) skusCeroCount++;
-    });
-
     const pendingDesp = allShipments.filter((s: any) => s.status === "pendiente").length;
     const pendingDevol = allReturns.filter((r: any) => r.status === "pendiente").length;
     const quotesAbiertas = allQuotes.filter((q: any) => q.status === "abierta").length;
@@ -2751,7 +3816,7 @@ export async function getDashboardData() {
       const sku = skusMap.get(item.skuId);
       if (!sku) continue;
       const modelId = sku.modelId;
-      const modelName = modelsMap.get(modelId) || "Modelo desconocido";
+      const modelName = sku.modelName || "Modelo desconocido";
       const current = productQuantities.get(modelId) || { name: modelName, units: 0, revenue: 0 };
       current.units += item.quantity;
       current.revenue += item.quantity * item.unitPrice;
@@ -2774,19 +3839,13 @@ export async function getDashboardData() {
       p.rank = String(idx + 1);
     });
 
-    // Low Skus
-    const lowSkusList = allSkus
-      .filter((s: any) => s.stock <= 3)
-      .map((s: any) => {
-        const modelName = modelsMap.get(s.modelId) || "Modelo";
-        return {
-          codigo: s.compositeCode,
-          modelo: modelName,
-          color: s.compositeCode.split("-")[1] || "Color",
-          stock: s.stock,
-        };
-      })
-      .slice(0, 5);
+    // Low Skus (already bounded + ordered in SQL above)
+    const lowSkusList = lowSkusRows.map((s: any) => ({
+      codigo: s.compositeCode,
+      modelo: s.modelName || "Modelo",
+      color: s.compositeCode.split("-")[1] || "Color",
+      stock: s.stock,
+    }));
 
     // Recent activity
     const activities: { dot: string; txt: string; monto: string; date: string; timestamp: number }[] = [];
@@ -2838,41 +3897,47 @@ export async function getDashboardData() {
     }
     const totalPaymentsUsd = Array.from(methodTotals.values()).reduce((sum, val) => sum + val, 0);
 
-    const payMethodsBreakdown = Array.from(methodTotals.entries()).map(([id, val]) => {
-      const method = payMethodsMap.get(id);
-      return {
-        name: method ? method.name : "Otro",
-        pct: totalPaymentsUsd > 0 ? Math.round((val / totalPaymentsUsd) * 100) : 0,
-        color: id % 2 === 0 ? "#15151A" : id % 3 === 0 ? "#4A4A52" : "#8A8A82",
-      };
-    }).sort((a, b) => b.pct - a.pct);
+    // Real payment-method mix for the month (no fabricated fallback).
+    const PAY_PALETTE = ["#15151A", "#4A4A52", "#8A8A82", "#B8B8B0", "#D7D5CD"];
+    const payMethodsBreakdown = Array.from(methodTotals.entries())
+      .map(([id, val]) => ({ id, name: payMethodsMap.get(id)?.name || "Otro", value: val }))
+      .sort((a, b) => b.value - a.value)
+      .map((m, i) => ({
+        name: m.name,
+        pct: totalPaymentsUsd > 0 ? Math.round((m.value / totalPaymentsUsd) * 100) : 0,
+        color: PAY_PALETTE[i % PAY_PALETTE.length],
+      }));
 
-    if (payMethodsBreakdown.length === 0) {
-      payMethodsBreakdown.push(
-        { name: "Zelle", pct: 50, color: "#15151A" },
-        { name: "Binance", pct: 30, color: "#4A4A52" },
-        { name: "Efectivo", pct: 20, color: "#8A8A82" }
-      );
-    }
+    // Real weekly buckets (by day-of-month) for the facturación vs. gastos chart.
+    const weekFacturacion = [0, 0, 0, 0];
+    const weekGastos = [0, 0, 0, 0];
+    const weekBucket = (dateStr: string) => {
+      const day = Number((dateStr || "").slice(8, 10)) || 1;
+      return Math.min(3, Math.max(0, Math.floor((day - 1) / 7)));
+    };
+    for (const s of allSales as any[]) weekFacturacion[weekBucket(s.date)] += s.totalUsd;
+    for (const e of allExpenses as any[]) weekGastos[weekBucket(e.date)] += e.amountUsd;
+    const weeksData = weekFacturacion.map((fact, i) => ({
+      label: `Sem ${i + 1}`,
+      facturacion: Math.round(fact),
+      gastos: Math.round(weekGastos[i]),
+    }));
 
-    const weeksData = [
-      { label: "Sem 1", facturacion: Math.round(totalVentasUsd * 0.25), gastos: Math.round(totalGastosUsd * 0.2) },
-      { label: "Sem 2", facturacion: Math.round(totalVentasUsd * 0.35), gastos: Math.round(totalGastosUsd * 0.3) },
-      { label: "Sem 3", facturacion: Math.round(totalVentasUsd * 0.20), gastos: Math.round(totalGastosUsd * 0.2) },
-      { label: "Sem 4", facturacion: Math.round(totalVentasUsd * 0.20), gastos: Math.round(totalGastosUsd * 0.3) },
-    ];
-
-    return {
+    const result = {
       ventasMes: totalVentasUsd,
       totalVentasCount,
       gananciaNeta: netProfit,
       marginPct,
       deudaCons: totalDeudaCons,
+      consignLiquidado: totalConsignLiquidatedUsd,
       gastosMes: totalGastosUsd,
       skusCero: skusCeroCount,
       despPend: pendingDesp,
       devolPend: pendingDevol,
       invVal: inventoryValuation,
+      invUnits: inventoryUnits,
+      invRetail: inventoryRetail,
+      invPotencial: inventoryPotentialMargin,
       cotAbiertas: quotesAbiertas,
       devolTotal: totalDevolucionesCount,
       topProducts: topProductsList,
@@ -2881,6 +3946,7 @@ export async function getDashboardData() {
       payMethods: payMethodsBreakdown,
       weeks: weeksData,
     };
+    return result;
   } catch (e: any) {
     console.error("Error in getDashboardData:", e);
     return null;

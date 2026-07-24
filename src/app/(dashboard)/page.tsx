@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { getDashboardData, getConfigData } from "@/lib/db/actions";
 import { formatUSD } from "@/lib/utils";
 import styles from "./page.module.css";
@@ -43,6 +44,7 @@ const alertIcon = (
 
 export default function PanelPage() {
   const user = useUser();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [dbData, setDbData] = useState<any>(null);
   const [rates, setRates] = useState<{ paralelo: number; bcv: number }>({
@@ -53,10 +55,11 @@ export default function PanelPage() {
   async function loadData() {
     try {
       setLoading(true);
-      const data = await getDashboardData();
+      const [data, config] = await Promise.all([
+        getDashboardData(),
+        getConfigData(),
+      ]);
       setDbData(data);
-
-      const config = await getConfigData();
       const pRate = parseFloat(
         config.settings[SETTINGS_KEYS.parallelRate] || String(SYSTEM_DEFAULTS.rates.paralelo)
       );
@@ -71,9 +74,25 @@ export default function PanelPage() {
     }
   }
 
+  // The "usuario" role (operational worker) has no access to the dashboard/metrics.
   useEffect(() => {
+    if (user?.role === "usuario") {
+      router.replace("/ventas");
+    }
+  }, [user, router]);
+
+  useEffect(() => {
+    if (user?.role === "usuario") return;
     loadData();
-  }, []);
+  }, [user?.role]);
+
+  if (user?.role === "usuario") {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "300px" }}>
+        <div className="loader">Redirigiendo…</div>
+      </div>
+    );
+  }
 
   if (loading || !dbData) {
     return (
@@ -94,7 +113,6 @@ export default function PanelPage() {
           <p>
             <strong>{dbData.skusCero} SKUs en cero</strong> · {dbData.despPend} despacho pendiente · {dbData.devolPend} devolución por procesar
           </p>
-          <div style={{ flex: 1 }} />
           <button className={styles.alertLink} onClick={() => window.location.href = "/inventario"}>Revisar →</button>
         </div>
       )}
@@ -124,9 +142,9 @@ export default function PanelPage() {
             <div className="kpi-sub" style={{ color: "var(--text-tertiary)" }}>
               Margen {dbData.marginPct.toFixed(1)}% del período
             </div>
-            <div className="kpi-trend" style={{ color: "var(--success)" }}>
-              {arrowUp}
-              Ganancia calculada del mes
+            <div className="kpi-trend" style={{ color: "var(--text-tertiary)" }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--success)" }} />
+              Ventas − costo productos − gastos
             </div>
           </div>
         ) : (
@@ -153,8 +171,8 @@ export default function PanelPage() {
             Saldo pendiente consignatarias
           </div>
           <div className="kpi-trend neutral">
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--warning)" }} />
-            Por cobrar
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--success)" }} />
+            Liquidado: {f$(dbData.consignLiquidado || 0)}
           </div>
         </div>
 
@@ -178,7 +196,7 @@ export default function PanelPage() {
       <div className="grid-chart mb-16">
         {/* Facturación vs Gastos */}
         <div className="card" style={{ borderRadius: "var(--radius-5xl)", padding: "22px" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18 }}>
             <div>
               <div className="section-title">Facturación vs Gastos</div>
               <div style={{ fontSize: "var(--text-base)", color: "var(--text-muted)", marginTop: 2 }}>Mes actual · por semana</div>
@@ -241,17 +259,17 @@ export default function PanelPage() {
       {/* Secondary KPIs */}
       <div className="grid-4 mb-16">
         {[
-          { label: "Inventario valorizado", value: f$(dbData.invVal), sub: "a costo promedio" },
+          { label: "Inventario a costo", value: f$(dbData.invVal), sub: `${dbData.invUnits ?? 0} und en stock · a precio venta ${f$(dbData.invRetail ?? 0)}` },
           { label: "Cotizaciones abiertas", value: String(dbData.cotAbiertas), sub: "por convertir en venta" },
           { label: "Despachos pendientes", value: String(dbData.despPend), sub: "por enviar" },
           { label: "Devoluciones del mes", value: String(dbData.devolTotal), sub: `${dbData.devolPend} pendiente de procesar` },
         ].map((k, i) => (
           <div key={i} className="card card-compact">
             <div className="section-label" style={{ fontSize: "var(--text-xs2)" }}>{k.label}</div>
-            <div style={{ fontSize: "var(--text-3xl)", fontWeight: 800, letterSpacing: "-0.02em", marginTop: 6 }}>
+            <div className="kpi-value-compact" style={{ marginTop: 6, overflowWrap: "anywhere" }}>
               {k.value}
             </div>
-            <div style={{ fontSize: "var(--text-sm)", color: "var(--text-muted)", marginTop: 2 }}>{k.sub}</div>
+            <div style={{ fontSize: "var(--text-sm)", color: "var(--text-muted)", marginTop: 2, overflowWrap: "anywhere" }}>{k.sub}</div>
           </div>
         ))}
       </div>

@@ -76,11 +76,11 @@
   --text-md2: 13.5px;
   --text-lg: 14px;
   --text-xl: 15px;
-  --text-2xl: 18px;
-  --text-3xl: 22px;
-  --text-4xl: 23px;
-  --text-5xl: 26px;
-  --text-6xl: 32px;
+  --text-2xl: clamp(16px, 4vw, 18px);
+  --text-3xl: clamp(18px, 4.8vw, 22px);
+  --text-4xl: clamp(19px, 5.2vw, 23px);
+  --text-5xl: clamp(22px, 6vw, 26px);
+  --text-6xl: clamp(24px, 6.5vw, 32px);
 
   /* --- Spacing --- */
   --sidebar-width: 250px;
@@ -927,9 +927,34 @@ aside::-webkit-scrollbar-thumb {
   border-top: 1px solid var(--border-main);
 }
 
+.modal-footer-sticky {
+  position: sticky;
+  bottom: calc(-1 * var(--form-padding-bottom, 24px));
+  margin-left: calc(-1 * var(--form-padding-left, 24px));
+  margin-right: calc(-1 * var(--form-padding-right, 24px));
+  margin-bottom: calc(-1 * var(--form-padding-bottom, 24px));
+  margin-top: auto; /* Push it to the bottom if content is short */
+  padding: 16px var(--form-padding-right, 24px) var(--form-padding-bottom, 24px) var(--form-padding-left, 24px);
+  background: var(--bg-card);
+  border-top: 1px solid var(--border-main);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-footer-sticky .alert-banner,
+.modal-footer-sticky .alert {
+  margin-bottom: 0 !important;
+}
+
 .modal form,
 .modal-content form {
-  padding: 24px;
+  --form-padding-top: 24px;
+  --form-padding-right: 24px;
+  --form-padding-bottom: 24px;
+  --form-padding-left: 24px;
+  padding: var(--form-padding-top) var(--form-padding-right) var(--form-padding-bottom) var(--form-padding-left);
   overflow-y: auto;
   max-height: calc(min(90vh, calc(100vh - 48px)) - 78px);
   display: flex;
@@ -1214,10 +1239,15 @@ aside::-webkit-scrollbar-thumb {
   flex: none;
 }
 
+/* Positioned via JS (fixed, anchored to the trigger) on desktop and via the
+   <=768px media query (bottom sheet) on mobile. Portaled to <body>, so the
+   z-index must clear the modal (var(--z-modal) = 50) it may be opened from. */
 .search-create-dropdown {
-  position: absolute;
-  inset: calc(100% + 8px) 0 auto;
-  z-index: calc(var(--z-dropdown) + 2);
+  position: fixed;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--bg-card);
   border: 1px solid var(--border-main);
   border-radius: var(--radius-4xl);
@@ -1226,13 +1256,15 @@ aside::-webkit-scrollbar-thumb {
 }
 
 .search-create-input {
+  flex: none;
   margin-bottom: 8px;
 }
 
 .search-create-options {
   display: grid;
   gap: 6px;
-  max-height: 260px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -1295,9 +1327,46 @@ aside::-webkit-scrollbar-thumb {
   max-width: 1040px;
 }
 
+.sales-modal .modal-header {
+  align-items: flex-start;
+}
+
+.sales-modal-copy {
+  min-width: 0;
+}
+
+.sales-modal-copy p {
+  margin-top: 4px;
+  font-size: var(--text-sm2);
+  color: var(--text-muted);
+}
+
+.sales-section {
+  margin-bottom: 14px;
+}
+
+.sales-rate-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 14px;
+  margin-bottom: 14px;
+  align-items: end;
+}
+
+.sales-rate-inputs {
+  display: flex;
+  gap: 8px;
+}
+
+.sales-helper {
+  font-size: var(--text-sm2);
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
 .sales-composer {
   display: grid;
-  grid-template-columns: minmax(420px, 1.2fr) minmax(320px, 0.88fr);
+  grid-template-columns: minmax(320px, 1.2fr) minmax(260px, 0.88fr);
   gap: 18px;
 }
 
@@ -1312,6 +1381,13 @@ aside::-webkit-scrollbar-thumb {
   font-size: var(--text-lg);
   font-weight: 800;
   margin-bottom: 10px;
+}
+
+.sales-panel-copy {
+  margin-top: -2px;
+  margin-bottom: 14px;
+  font-size: var(--text-sm2);
+  color: var(--text-muted);
 }
 
 .sales-product-preview {
@@ -1362,6 +1438,16 @@ aside::-webkit-scrollbar-thumb {
   color: var(--text-secondary);
   font-size: var(--text-md2);
   font-weight: 700;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.sales-choice-chip:hover {
+  transform: translateY(-1px);
+  border-color: #d5d2c7;
 }
 
 .sales-choice-chip.is-active {
@@ -1396,6 +1482,145 @@ aside::-webkit-scrollbar-thumb {
   font-size: var(--text-xl);
   font-weight: 800;
   margin-top: 4px;
+}
+
+.sales-cart-list {
+  max-height: 240px;
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.sales-cart-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  background: #fff;
+  border-radius: var(--radius-xl);
+}
+
+.sales-cart-code {
+  font-size: var(--text-sm2);
+  font-weight: 700;
+}
+
+.sales-cart-meta {
+  font-size: var(--text-sm2);
+  color: var(--text-muted);
+}
+
+.sales-total-strip {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-main);
+}
+
+.sales-total-strip .label {
+  font-size: var(--text-xs2);
+  color: var(--text-muted);
+}
+
+.sales-total-strip .value-strong {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+}
+
+.sales-total-strip .value-mono {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.sales-payment-section {
+  background: linear-gradient(180deg, rgba(240, 238, 232, 0.78), rgba(240, 238, 232, 0.98));
+  border: 1px solid var(--border-main);
+  padding: 16px;
+  border-radius: var(--radius-4xl);
+  margin-bottom: 20px;
+}
+
+.sales-payment-header {
+  margin-bottom: 10px;
+}
+
+.sales-payment-header h4 {
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+
+.sales-payment-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1.5fr auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 12px;
+  min-width: 620px;
+}
+
+.sales-payment-copy {
+  font-size: var(--text-sm2);
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  line-height: 1.45;
+}
+
+.sales-payment-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sales-payment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: var(--bg-card-dark);
+  color: #fff;
+  font-size: var(--text-sm2);
+  font-weight: 600;
+}
+
+.sales-payment-chip button {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.sales-payment-status {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.sales-form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.sales-convert-modal {
+  width: min(calc(100vw - 48px), 640px);
+  max-width: 640px;
+}
+
+.sales-convert-summary {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-main);
+  border-radius: var(--radius-3xl);
 }
 
 /* --- Avatar --- */
@@ -1433,6 +1658,70 @@ aside::-webkit-scrollbar-thumb {
   border-left: 3px solid var(--warning);
 }
 
+.alert-banner-success {
+  border-left: 3px solid var(--success);
+  background: var(--success-bg);
+}
+
+.alert-banner-success p {
+  color: var(--success);
+}
+
+.alert-banner-success p strong {
+  color: var(--success);
+}
+
+/* --- Icon Buttons (row actions: delete, edit) --- */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.icon-btn:hover {
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.icon-btn-danger:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: var(--danger-bg);
+}
+
+/* --- Skeleton loaders --- */
+@keyframes ku-skeleton-pulse {
+  0% { opacity: 0.55; }
+  50% { opacity: 1; }
+  100% { opacity: 0.55; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-subtle) 0%, var(--border-light) 50%, var(--bg-subtle) 100%);
+  border-radius: 8px;
+  animation: ku-skeleton-pulse 1.3s ease-in-out infinite;
+}
+
+.skeleton-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-main);
+  border-radius: var(--radius-5xl);
+  padding: 20px;
+}
+
 .alert-banner p {
   font-size: var(--text-md);
   color: var(--text-secondary);
@@ -1458,6 +1747,7 @@ aside::-webkit-scrollbar-thumb {
 .grid-2-sidebar-wide { display: grid; grid-template-columns: 1fr 340px; gap: 16px; }
 .grid-chart { display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; }
 
+.mb-14 { margin-bottom: 14px; }
 .mb-16 { margin-bottom: 16px; }
 .mb-18 { margin-bottom: 18px; }
 .mt-16 { margin-top: 16px; }
@@ -1530,9 +1820,15 @@ aside::-webkit-scrollbar-thumb {
   .grid-chart { grid-template-columns: 1fr; }
   .grid-2-sidebar,
   .grid-2-sidebar-wide { grid-template-columns: 1fr; }
+  .sales-rate-grid,
   .sales-composer,
   .sales-product-preview,
-  .sales-kpi-strip { grid-template-columns: 1fr; }
+  .sales-kpi-strip,
+  .sales-total-strip { grid-template-columns: 1fr; }
+  .sales-payment-status {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 @media (max-width: 768px) {
@@ -1604,7 +1900,11 @@ aside::-webkit-scrollbar-thumb {
 
   .modal form,
   .modal-content form {
-    padding: 18px;
+    --form-padding-top: 18px;
+    --form-padding-right: 18px;
+    --form-padding-bottom: 18px;
+    --form-padding-left: 18px;
+    padding: var(--form-padding-top) var(--form-padding-right) var(--form-padding-bottom) var(--form-padding-left);
     max-height: calc(min(92vh, calc(100vh - 24px)) - 72px);
   }
 
@@ -1612,6 +1912,14 @@ aside::-webkit-scrollbar-thumb {
   .modal-footer {
     padding-left: 18px;
     padding-right: 18px;
+  }
+
+  .sales-form-actions {
+    flex-direction: column-reverse;
+  }
+
+  .sales-form-actions .btn {
+    width: 100%;
   }
 
   .auth-shell {
@@ -1826,4 +2134,143 @@ aside::-webkit-scrollbar-thumb {
 
 .search-item:hover {
   background: var(--bg-hover-row);
+}
+
+/* ============================================================
+   9. Responsive refinements (mobile audit)
+   ============================================================ */
+
+/* --- All viewports --- */
+.alert-banner { flex-wrap: wrap; }
+.kpi-sub { overflow-wrap: anywhere; }
+.toast {
+  max-width: calc(100vw - 24px);
+  bottom: calc(26px + env(safe-area-inset-bottom));
+}
+/* Horizontally-scrollable pill group (catalog filters, etc.) */
+.range-selector.is-scrollable {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+.range-selector.is-scrollable .range-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+/* Compact KPI value that scales with the fluid type tokens */
+.kpi-value-compact {
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+/* Reserve bottom space only while the PWA install banner is visible */
+body.pwa-banner-visible .page-content {
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+
+@media (max-width: 768px) {
+  :root { --content-padding-bottom: 28px; }
+
+  /* Lock background scroll while the drawer is open */
+  .page-content.scroll-locked { overflow: hidden; }
+
+  /* CRITICAL: the open drawer must sit ABOVE its dimming overlay (overlay = 99) */
+  .sidebar {
+    z-index: 100;
+    width: min(250px, 86vw);
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Notch / cutout safe areas on fixed chrome */
+  .header {
+    padding-top: max(14px, env(safe-area-inset-top));
+    padding-left: max(var(--content-padding), env(safe-area-inset-left));
+    padding-right: max(var(--content-padding), env(safe-area-inset-right));
+  }
+
+  /* Prevent iOS Safari focus auto-zoom (needs >=16px) */
+  .input,
+  .search-create-input,
+  .search-bar input,
+  .modal input,
+  .modal select,
+  .modal textarea,
+  .modal-content input,
+  .modal-content select,
+  .modal-content textarea { font-size: 16px; }
+
+  /* Comfortable touch targets for dense controls */
+  .icon-btn { width: 40px; height: 40px; }
+  .btn-icon,
+  .modal-close,
+  .btn-close { width: 40px; height: 40px; min-width: 40px; min-height: 40px; }
+  .password-toggle { width: 40px; height: 40px; }
+  .hamburger-btn { width: 40px; height: 40px; margin-right: 6px; padding: 0; }
+  .table-row .btn-xs,
+  .table-row .icon-btn { min-height: 36px; min-width: 36px; }
+
+  /* Payment form stacks instead of forcing a 620px side-scroll */
+  .sales-payment-grid { grid-template-columns: 1fr; min-width: 0; }
+  .sales-payment-grid > button { width: 100%; }
+  .sales-payment-grid .input,
+  .sales-payment-grid select { min-height: 44px; }
+
+  /* Config tabs: horizontal scroll strip instead of a tall vertical stack */
+  .settings-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 6px;
+    padding-bottom: 4px;
+  }
+  .settings-nav-btn { white-space: nowrap; flex: 0 0 auto; }
+
+  /* SearchCreateSelect dropdown escapes the modal's overflow clip as a
+     bottom sheet; z-index must clear the modal (50) it may live inside. */
+  .search-create-dropdown {
+    position: fixed;
+    inset: auto 12px 12px 12px;
+    max-height: 60vh;
+    z-index: 70;
+  }
+  .search-create-options { max-height: calc(60vh - 70px); }
+
+  /* Sticky footer for the dense sales modal */
+  .sales-form-actions {
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-card);
+    margin: 0 -18px -18px;
+    padding: 12px 18px;
+    border-top: 1px solid var(--border-main);
+  }
+
+  /* Bottom-sheet modals respect the home indicator */
+  .modal form,
+  .modal-content form {
+    --form-padding-bottom: calc(18px + env(safe-area-inset-bottom));
+    padding-bottom: var(--form-padding-bottom);
+  }
+}
+
+/* --- Small phones (<=380px) --- */
+@media (max-width: 380px) {
+  :root { --content-padding: 14px; }
+  .header { gap: 10px; }
+  .grid-4, .grid-3, .grid-2 { gap: 12px; }
+  .modal form,
+  .modal-content form {
+    --form-padding-left: 14px;
+    --form-padding-right: 14px;
+    padding-left: var(--form-padding-left);
+    padding-right: var(--form-padding-right);
+  }
+  .modal-header,
+  .modal-footer { padding-left: 14px; padding-right: 14px; }
+  /* Keep the sticky sales footer flush with the reduced 14px form padding */
+  .sales-form-actions { margin-left: -14px; margin-right: -14px; padding-left: 14px; padding-right: 14px; }
+  .auth-card { padding: 22px 14px; }
+  .auth-logo-frame { width: 64px; height: 64px; border-radius: 18px; }
+  .toast { left: 12px; right: 12px; transform: none; max-width: none; }
+  .range-selector { width: 100%; }
 }
