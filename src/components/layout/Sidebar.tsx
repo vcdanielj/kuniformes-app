@@ -136,7 +136,6 @@ const navSections: NavSection[] = [
     title: "Sistema",
     items: [
       { key: "actividad", label: "Actividad", href: "/actividad" },
-      { key: "manual", label: "Manual de Uso", href: "/manual" },
       { key: "config", label: "Configuración", href: "/configuracion" },
     ],
   },

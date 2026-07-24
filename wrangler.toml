@@ -1,4 +1,5 @@
 name = "kuniformes-app"
+account_id = "053d6d9140fd678f8d5e1843dffa6298"
 main = "worker.mjs"
 compatibility_date = "2024-12-30"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
@@ -15,7 +16,7 @@ service = "kuniformes-app"
 [[d1_databases]]
 binding = "DB"
 database_name = "kuniformes-db"
-database_id = "3f872ad5-9638-43d1-91f5-9e8895963cef"
+database_id = "eb70baca-4155-4bdd-bfd9-6dc14da30795"
 migrations_dir = "src/lib/db/migrations"
 
 # R2 Bucket (optional: enable in Cloudflare Dashboard if needed)

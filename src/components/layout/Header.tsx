@@ -28,6 +28,7 @@ const pageMeta: Record<string, { kicker: string; title: string }> = {
   "/devoluciones": { kicker: "Devoluciones y cambios", title: "Devoluciones" },
   "/gastos": { kicker: "Egresos del período", title: "Gastos" },
   "/despachos": { kicker: "Envíos y transportistas", title: "Despachos" },
+  "/manual": { kicker: "Guía interactiva y ayuda", title: "Manual de Uso" },
   "/configuracion": { kicker: "Catálogos y parámetros", title: "Configuración" },
 };
 
@@ -179,6 +180,36 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
           )}
         </div>
 
+        {/* Ayuda / Manual Button */}
+        <button
+          onClick={() => router.push("/manual")}
+          title="Manual de Uso y Ayuda"
+          aria-label="Manual de Uso y Ayuda"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "8px 14px",
+            borderRadius: 10,
+            border: "1px solid var(--border-color, #E2E8F0)",
+            background: pathname === "/manual" ? "var(--accent, #2563EB)" : "var(--bg-card, #FFFFFF)",
+            color: pathname === "/manual" ? "#FFFFFF" : "var(--text-main, #334155)",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+            marginLeft: 10,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <span>Ayuda</span>
+        </button>
       </div>
     </header>
   );
