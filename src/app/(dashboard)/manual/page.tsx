@@ -6,6 +6,7 @@ import { useUser } from "../UserContext";
 /* ─── Type Definitions ─── */
 type CategoryTab =
   | "todos"
+  | "diagramas"
   | "inicio"
   | "inventario"
   | "ventas"
@@ -13,6 +14,8 @@ type CategoryTab =
   | "despachos"
   | "finanzas"
   | "faqs";
+
+type RoleFilter = "all" | "admin" | "vendedor" | "usuario";
 
 interface WorkflowStep {
   step: number;
@@ -32,8 +35,9 @@ interface WorkflowCard {
   steps: WorkflowStep[];
   tip?: string;
   visualMock?: {
-    type: "badges" | "flow" | "pdf" | "rates" | "pwa";
+    type: "badges" | "flow" | "pdf" | "rates" | "pwa" | "table";
     labels?: string[];
+    details?: string;
   };
 }
 
@@ -46,84 +50,144 @@ interface FAQItem {
   roles: Array<"admin" | "vendedor" | "usuario">;
 }
 
+interface DiagramFlow {
+  id: string;
+  title: string;
+  icon: string;
+  desc: string;
+  nodes: Array<{ title: string; subtitle: string; color: string }>;
+}
+
+/* ─── Interactive Process Diagrams ─── */
+const DIAGRAMS: DiagramFlow[] = [
+  {
+    id: "flow-ventas",
+    title: "Ciclo Completo de Venta y Facturación",
+    icon: "🧾",
+    desc: "Flujo desde la solicitud inicial del cliente hasta la entrega final y registro de pago.",
+    nodes: [
+      { title: "1. Cotización (COT)", subtitle: "Propuesta informativa. No descuenta stock.", color: "#3B82F6" },
+      { title: "2. Confirmación", subtitle: "Cliente aprueba modelo, cantidad y talla.", color: "#8B5CF6" },
+      { title: "3. Nota de Entrega (NE)", subtitle: "Genera cobro y descuenta inventario.", color: "#EC4899" },
+      { title: "4. Despacho & Pago", subtitle: "Asignación de transporte y cobro USD/Bs.", color: "#10B981" },
+    ],
+  },
+  {
+    id: "flow-consignacion",
+    title: "Flujo de Gestión de Consignación",
+    icon: "🤝",
+    desc: "Control de mercancía prestada a aliados comerciales sin registro de venta inmediata.",
+    nodes: [
+      { title: "1. Entrega Consignación", subtitle: "Se prestan prendas a aliado/vendedor.", color: "#F59E0B" },
+      { title: "2. Reporte de Ventas", subtitle: "El aliado reporta unidades vendidas.", color: "#6366F1" },
+      { title: "3. Abono o Devolución", subtitle: "Ingresa pago o devuelven prendas intactas.", color: "#8B5CF6" },
+      { title: "4. Liquidación Final", subtitle: "Saldo $0 y cierre formal del lote prestado.", color: "#10B981" },
+    ],
+  },
+  {
+    id: "flow-devolucion",
+    title: "Proceso de Devolución de Mercancía (DV)",
+    icon: "🔄",
+    desc: "Protocolo para procesamiento de cambios de talla o prendas defectuosas.",
+    nodes: [
+      { title: "1. Solicitud de Cliente", subtitle: "Recepción de prenda y comprobante NE.", color: "#EF4444" },
+      { title: "2. Evaluación Motivo", subtitle: "Cambio de talla vs. Defecto de fábrica.", color: "#F59E0B" },
+      { title: "3. Reingreso / Descarte", subtitle: "Regresa a stock o se da de baja.", color: "#3B82F6" },
+      { title: "4. Ajuste de Saldo", subtitle: "Emisión de reemplazo o saldo a favor.", color: "#10B981" },
+    ],
+  },
+  {
+    id: "flow-tasas",
+    title: "Manejo de Tasas de Cambio Multimoneda",
+    icon: "💱",
+    desc: "Dinámica de precios base en USD y recálculo automático en Bolívares.",
+    nodes: [
+      { title: "1. Precio Base USD ($)", subtitle: "Valor fijo de cada uniforme en catálogo.", color: "#059669" },
+      { title: "2. Actualización Tasa", subtitle: "Carga diaria de tasa BCV y Paralelo.", color: "#2563EB" },
+      { title: "3. Conversión Automática", subtitle: "Recálculo instantáneo en presupuestos.", color: "#7C3AED" },
+      { title: "4. Emisión con Tasa Fija", subtitle: "La NE congela la tasa del momento.", color: "#10B981" },
+    ],
+  },
+];
+
 /* ─── Workflows Data ─── */
 const WORKFLOWS: WorkflowCard[] = [
   {
     id: "pwa-install",
     category: "inicio",
-    title: "Instalación de la App (PWA en Celular / PC)",
+    title: "Instalación de la App en Celular o PC (PWA)",
     icon: "📱",
     roles: ["admin", "vendedor", "usuario"],
     badgeText: "Inicio Rápido",
-    summary: "Instala KUniformes directamente en la pantalla de inicio de tu iPhone, Android o Computadora sin pasar por App Stores.",
+    summary: "Instala KUniformes directamente en tu iPhone, Android o Computadora para un acceso instantáneo sin pasar por la App Store.",
     steps: [
       {
         step: 1,
         title: "Abrir enlace en el navegador",
-        desc: "Ingresa a la app desde Safari (iOS) o Chrome (Android / PC).",
+        desc: "Ingresa a la app desde Safari (en iPhone) o Chrome (en Android / Computadora).",
         uiHint: "Navega a la URL oficial de KUniformes",
       },
       {
         step: 2,
         title: "Presionar botón de Instalación",
-        desc: "En el menú superior o en la barra lateral, haz clic en 'Instalar App' o usa la opción 'Agregar a pantalla de inicio'.",
-        uiHint: "En iPhone: Compartir ➔ Agregar a Inicio. En Android: 'Instalar Aplicación'",
+        desc: "En el menú superior o barra lateral, haz clic en 'Instalar App' o selecciona 'Agregar a pantalla de inicio'.",
+        uiHint: "iOS: Compartir ➔ Agregar a Inicio | Android: Instalar App",
       },
       {
         step: 3,
         title: "Activar Notificaciones Push",
-        desc: "Acepta el permiso de notificaciones para recibir alertas instantáneas de stock bajo y nuevos despachos.",
-        uiHint: "Clic en el botón flotante 'Activar Notificaciones'",
+        desc: "Acepta el permiso de notificaciones para recibir alertas instantáneas de stock bajo y despachos.",
+        uiHint: "Botón flotante 'Activar Notificaciones'",
       },
     ],
-    tip: "La app funcionará como una aplicación nativa, ocupando menos memoria y cargando de forma ultra rápida.",
+    tip: "La app funcionará de manera fluida y ultra rápida ocupando muy poco espacio en tu dispositivo.",
     visualMock: {
       type: "pwa",
-      labels: ["Icono KUniformes", "Sin Barra de Dirección", "Acceso Directo"],
+      labels: ["Icono KUniformes", "Pantalla Completa", "Notificaciones Push Activas"],
     },
   },
   {
     id: "inventario-nuevo",
     category: "inventario",
-    title: "Registro y Ajuste de Inventario",
+    title: "Registro de Uniformes y Control de Stock",
     icon: "📦",
     roles: ["admin", "vendedor", "usuario"],
     badgeText: "Inventario",
-    summary: "Añade nuevos uniformes, asigna tallas, modelo (Damas/Caballeros/Unisex/Niños) y gestiona el umbral de stock bajo.",
+    summary: "Añade nuevos uniformes, asigna variantes (Damas, Caballeros, Unisex, Niños), tallas y umbral de stock bajo.",
     steps: [
       {
         step: 1,
-        title: "Entrar al Módulo de Inventario",
+        title: "Entrar a Inventario",
         desc: "Haz clic en 'Inventario' en el menú lateral izquierdo.",
         uiHint: "Ruta: /inventario",
       },
       {
         step: 2,
-        title: "Crear o Editar Prenda",
-        desc: "Presiona el botón '+ Nuevo Producto' en la esquina superior derecha.",
-        uiHint: "Llena: Nombre, Categoría, Modelo, Talla, Color, Precio USD y Cantidad Inicial",
+        title: "Crear Producto",
+        desc: "Presiona '+ Nuevo Producto'. Llena Nombre, Categoría, Modelo, Talla, Color, Precio USD y Cantidad Inicial.",
+        uiHint: "Asigna las variaciones correspondientes",
       },
       {
         step: 3,
-        title: "Configurar Umbral de Stock Bajo",
-        desc: "Indica la cantidad mínima para alertas (ej. 5 unidades). Si la existencia cae por debajo, aparecerá en amarillo/rojo.",
-        uiHint: "El sistema marcará la prenda con la etiqueta 'Stock Bajo'",
+        title: "Definir Umbral de Alerta",
+        desc: "Establece el número mínimo de prendas (ej. 5 piezas). Si baja de esa cantidad, la app enviará una alerta.",
+        uiHint: "Etiqueta visual: Stock Bajo",
       },
     ],
-    tip: "Usa el filtro por género/modelo para encontrar rápido prendas de Damas o Caballeros al momento de atender a un cliente.",
+    tip: "Filtra rápidamente por modelo (Damas o Caballeros) al atender a un cliente para consultar disponibilidades al instante.",
     visualMock: {
       type: "badges",
-      labels: ["Disponible (Alto)", "Stock Bajo (<5)", "Agotado (0)"],
+      labels: ["Disponible (>5)", "Stock Bajo (1-5)", "Agotado (0)"],
     },
   },
   {
     id: "catalogo-pdf",
     category: "inventario",
-    title: "Generación de Catálogo Digital & PDF 2x2",
+    title: "Exportación de Catálogo PDF Visual 2x2",
     icon: "📄",
     roles: ["admin", "vendedor", "usuario"],
     badgeText: "Catálogo",
-    summary: "Crea y comparte listas de precios y catálogos visuales en PDF con retícula 2x2 optimizada para imprimir o enviar por WhatsApp.",
+    summary: "Genera catálogos visuales en formato PDF con cuadrícula limpia 2x2, precios en USD/Bs y marca oficial de la empresa.",
     steps: [
       {
         step: 1,
@@ -133,21 +197,21 @@ const WORKFLOWS: WorkflowCard[] = [
       },
       {
         step: 2,
-        title: "Aplicar Filtros Deseados",
-        desc: "Filtra por Categoría, Género o Disponibilidad según la solicitud del cliente.",
-        uiHint: "Ejemplo: 'Filtrar por Gorros Medicinales Unisex'",
+        title: "Aplicar Filtros",
+        desc: "Filtra por Categoría o Género si deseas generar un catálogo específico (ej. Gorros Medicinales).",
+        uiHint: "Filtro activo ➔ Muestra ítems seleccionados",
       },
       {
         step: 3,
-        title: "Exportar PDF",
-        desc: "Haz clic en 'Descargar Catálogo PDF'. El sistema generará un documento en formato 2x2 perfectamente centrado y con precios en USD/Bs.",
-        uiHint: "Genera vista en retícula limpia de 4 productos por página",
+        title: "Descargar PDF",
+        desc: "Haz clic en 'Descargar Catálogo PDF'. Se generará un PDF de 4 productos por página perfectamente centrado.",
+        uiHint: "Listo para compartir por WhatsApp o imprimir",
       },
     ],
-    tip: "El PDF incluye automáticamente la tasa de cambio vigente y los datos de contacto configurados en el sistema.",
+    tip: "El catálogo impreso incluye la tasa de cambio del día y los datos de contacto corporativos automáticamente.",
     visualMock: {
       type: "pdf",
-      labels: ["Grid 2x2 Centrado", "Precios en USD y Bs", "Encabezado Oficial KUniformes"],
+      labels: ["Cuadrícula 2x2 Centrada", "Precios en USD y Bs", "Logo & Contacto KUniformes"],
     },
   },
   {
@@ -157,130 +221,130 @@ const WORKFLOWS: WorkflowCard[] = [
     icon: "🧾",
     roles: ["admin", "vendedor", "usuario"],
     badgeText: "Ventas",
-    summary: "Registra solicitudes de clientes, emite cotizaciones previas o genera la Nota de Entrega definitiva descontando inventario.",
+    summary: "Genera cotizaciones informativas previas o emite la Nota de Entrega definitiva descontando inventario.",
     steps: [
       {
         step: 1,
-        title: "Crear Nueva Venta o Cotización",
-        desc: "Haz clic en 'Ventas' y luego en '+ Nueva Nota / Cotización'.",
-        uiHint: "Selecciona el cliente existente o crea uno rápido",
+        title: "Crear Venta / Presupuesto",
+        desc: "En 'Ventas', haz clic en '+ Nueva Nota / Cotización'. Selecciona o crea el cliente.",
+        uiHint: "Ruta: /ventas",
       },
       {
         step: 2,
-        title: "Agregar Productos al Carrito",
-        desc: "Selecciona el producto, talla y cantidad. El sistema calcula en tiempo real los precios en USD, Bs. Paralelo y Bs. BCV.",
-        uiHint: "Revisa disponibilidad en stock antes de agregar",
+        title: "Agregar Prendas al Carrito",
+        desc: "Elige producto, modelo, talla y cantidad. Revisa el importe en USD, Bs. Paralelo y Bs. BCV en tiempo real.",
+        uiHint: "Cálculo instantáneo multimoneda",
       },
       {
         step: 3,
-        title: "Seleccionar Tipo de Documento",
-        desc: "Elige entre 'Nota de Entrega (NE)' (descuenta stock) o 'Cotización (COT)' (reserva informativa).",
-        uiHint: "Puedes convertir una COT a NE más adelante con un solo clic",
+        title: "Seleccionar Tipo de Comprobante",
+        desc: "Selecciona 'Nota de Entrega (NE)' (descuenta stock) o 'Cotización (COT)' (reserva informativa).",
+        uiHint: "Puedes convertir COT a NE con 1 solo clic",
       },
     ],
-    tip: "Las Cotizaciones (COT) vencen automáticamente en el tiempo configurado si no son confirmadas.",
+    tip: "Las Cotizaciones permiten enviar opciones de compra al cliente sin bloquear el stock disponible en tienda.",
     visualMock: {
       type: "flow",
-      labels: ["Cotización (COT)", "➔ Confirmación", "➔ Nota de Entrega (NE)"],
+      labels: ["Cotización (COT)", "➔ Aprobación", "➔ Nota de Entrega (NE)"],
     },
   },
   {
     id: "consignacion-flujo",
     category: "consignacion",
-    title: "Gestión de Mercancía en Consignación",
+    title: "Control de Mercancía en Consignación",
     icon: "🤝",
     roles: ["admin", "vendedor", "usuario"],
     badgeText: "Consignación",
-    summary: "Controla uniformes entregados a aliados o vendedores externos sin registrarlos como venta inmediata hasta su liquidación.",
+    summary: "Administra uniformes entregados a aliados o vendedoras sin registrar venta inmediata hasta su liquidación.",
     steps: [
       {
         step: 1,
-        title: "Registrar Entrega a Consignación",
-        desc: "En 'Consignación', haz clic en '+ Nueva Consignación'. Asigna el consignatario (cliente/aliado) y las piezas prestadas.",
-        uiHint: "Las piezas cambian a estado 'En Consignación'",
+        title: "Registrar Consignación",
+        desc: "En 'Consignación' ➔ '+ Nueva Consignación'. Asigna el aliado comercial y las unidades prestadas.",
+        uiHint: "El inventario pasa a estado 'En Consignación'",
       },
       {
         step: 2,
-        title: "Registrar Abonos o Ventas Parciales",
-        desc: "A medida que el consignatario vende prendas, ingresa a la ficha y registra los pagos/abonos recibidos.",
-        uiHint: "Boton: 'Registrar Abono'",
+        title: "Registrar Abonos Parciales",
+        desc: "Conforme el consignatario vende prendas, ingresa a su registro y presiona 'Registrar Abono'.",
+        uiHint: "Registra cobros en USD o Bs",
       },
       {
         step: 3,
-        title: "Devolución o Liquidación Final",
-        desc: "Si devuelven prendas no vendidas, presiona 'Registrar Devolución' para reincorporarlas al inventario disponible. Al completar el pago, marca 'Liquidar'.",
-        uiHint: "Estados: Activa ➔ Parcialmente Pagada ➔ Liquidada / Finalizada",
+        title: "Devolución o Liquidación",
+        desc: "Para prendas devueltas presiona 'Registrar Devolución'. Al completar todos los pagos, presiona 'Liquidar'.",
+        uiHint: "Estados: Activa ➔ Parcial ➔ Liquidada",
       },
     ],
-    tip: "El sistema mantiene un balance transparente de unidades prestadas vs. reportadas.",
+    tip: "El sistema mantiene una cuenta clara de prendas en poder del aliado vs. dinero cobrado.",
     visualMock: {
       type: "badges",
-      labels: ["Activa (Prendas fuera)", "Abonado Parcial", "Liquidada (Cerrada)"],
+      labels: ["Activa (Fuera)", "Parcialmente Pagada", "Liquidada (Cerrada)"],
     },
   },
   {
     id: "despachos-devoluciones",
     category: "despachos",
-    title: "Despacho de Pedidos & Devoluciones (DV)",
+    title: "Gestión de Despachos y Devoluciones (DV)",
     icon: "🚚",
     roles: ["admin", "vendedor", "usuario"],
     badgeText: "Operaciones",
-    summary: "Monitorea las entregas físicas con transportistas y procesa devoluciones por cambio de talla o prenda defectuosa.",
+    summary: "Asigna agencias de envío a las Notas de Entrega y procesa devoluciones por cambio de talla o imperfección.",
     steps: [
       {
         step: 1,
-        title: "Asignar Despacho a Transporte",
-        desc: "En 'Despachos', selecciona la Nota de Entrega y asigna la agencia (Zoom, MRW, Tealca, Delivery).",
-        uiHint: "Registra número de guía y fecha estimada",
+        title: "Asignar Envíos y Agencias",
+        desc: "En 'Despachos', selecciona la Nota de Entrega y asigna la empresa de envío (Zoom, MRW, Tealca, Delivery).",
+        uiHint: "Registra número de guía de seguimiento",
       },
       {
         step: 2,
-        title: "Actualizar Estatus de Entrega",
-        desc: "Cambia el estatus de 'En Tránsito' a 'Entregado' al recibir confirmación del cliente.",
+        title: "Actualizar Estado de Entrega",
+        desc: "Cambia el estatus de 'En Camino' a 'Entregado' al recibir la confirmación de la recepcionista o cliente.",
         uiHint: "Estatus: Pendiente ➔ En Camino ➔ Entregado",
       },
       {
         step: 3,
-        title: "Procesar Devolución (DV)",
-        desc: "Si hay un cambio, ve a 'Devoluciones' ➔ '+ Registrar Devolución'. Especifica motivo (Talla/Defecto) y si reingresa al inventario o se descarta.",
-        uiHint: "Ajusta automáticamente el saldo del cliente e inventario",
+        title: "Registrar Devolución (DV)",
+        desc: "En 'Devoluciones' ➔ '+ Registrar Devolución'. Especifica motivo (Talla/Defecto) y si reingresa al inventario apto.",
+        uiHint: "Ajusta saldo del cliente e inventario",
       },
     ],
-    tip: "Las devoluciones por defecto de fábrica no reingresan a mercancía disponible a menos que lo autorices.",
+    tip: "Las prendas devueltas por falla de fabricación quedan registradas en el historial de inservibles para control interno.",
     visualMock: {
       type: "flow",
-      labels: ["Despacho Creado", "➔ En Tránsito", "➔ Entregado / DV"],
+      labels: ["Despacho Creado", "➔ En Camino", "➔ Entregado / DV"],
     },
   },
   {
     id: "tasas-cambio",
     category: "finanzas",
-    title: "Sincronización y Actualización de Tasas de Cambio",
+    title: "Actualización de Tasas de Cambio (BCV / Paralelo)",
     icon: "💱",
     roles: ["admin", "vendedor", "usuario"],
     badgeText: "Finanzas",
-    summary: "Gestiona los valores de tasa de cambio oficial (BCV) y mercado paralelo para el cálculo exacto de precios en Bolívares.",
+    summary: "Administra las equivalencias oficiales y de mercado para la emisión de cuentas de cobro y presupuestos en Bolívares.",
     steps: [
       {
         step: 1,
-        title: "Visualizar Tasa Actual en Sidebar",
-        desc: "En el menú lateral inferior siempre verás reflejada la Tasa Paralela y la Tasa BCV Oficial en tiempo real.",
-        uiHint: "Ejemplo: USD Paralelo 801.50 Bs / BCV 600.20 Bs",
+        title: "Consultar Tasa Vigente",
+        desc: "En la parte inferior de la barra lateral siempre está visible la Tasa Paralela y BCV activa.",
+        uiHint: "Visible en todo momento en la app",
       },
       {
         step: 2,
-        title: "Sincronizar automáticamente o Ajustar Manual",
-        desc: "Ve a 'Configuración' ➔ pestaña 'Tasas de Cambio'. Haz clic en 'Sincronizar Tasas BCV' o ingresa los valores manuales.",
-        uiHint: "Boton: 'Guardar Tasas'",
+        title: "Sincronizar o Cargar Tasa Manual",
+        desc: "Solo Administradores: En 'Configuración' ➔ 'Tasas de Cambio', presiona 'Sincronizar BCV' o ingresa los montos manuales.",
+        uiHint: "Botón 'Guardar Tasas'",
       },
       {
         step: 3,
-        title: "Revisar Recálculo en Sistema",
-        desc: "Al cambiar la tasa, todos los precios e importes en Bs. de las cotizaciones y catálogo se recalculan al instante sin alterar el precio base en USD.",
-        uiHint: "El precio base en USD ($) permanece fijo e inalterado",
+        title: "Recálculo Automático",
+        desc: "Los montos en Bolívares se actualizan al instante en el catálogo y nuevas cotizaciones, manteniendo fijo el precio base en USD.",
+        uiHint: "Preserva los precios base en Dólares ($)",
       },
     ],
-    tip: "Los vendedores no pueden alterar la tasa global, garantizando uniformidad en todos los presupuestos del día.",
+    tip: "Las Notas de Entrega ya emitidas no cambian su monto en Bolívares original, congelando la tasa del momento de la venta.",
     visualMock: {
       type: "rates",
       labels: ["Tasa USD Paralelo", "Tasa USD BCV", "Euro Paralelo / BCV"],
@@ -289,111 +353,125 @@ const WORKFLOWS: WorkflowCard[] = [
   {
     id: "roles-usuarios",
     category: "finanzas",
-    title: "Gestión de Usuarios y Roles de Permisos",
+    title: "Administración de Usuarios y Permisos de Acceso",
     icon: "👥",
     roles: ["admin"],
-    badgeText: "Administración",
-    summary: "Crea cuentas de acceso para el personal asignando los roles correspondientes (Administradora, Vendedora, Operador).",
+    badgeText: "Seguridad",
+    summary: "Crea cuentas individuales para el equipo y asigna el rol según su función (Administradora, Vendedora, Operador).",
     steps: [
       {
         step: 1,
-        title: "Acceder a Usuarios",
-        desc: "Solo con rol 'Admin', ingresa a 'Configuración' ➔ pestaña 'Usuarios'.",
+        title: "Acceder a Módulo Usuarios",
+        desc: "Ingresa a 'Configuración' ➔ pestaña 'Usuarios' (exclusivo para Administradoras).",
         uiHint: "Ruta: /configuracion?tab=usuarios",
       },
       {
         step: 2,
-        title: "Crear Nuevo Usuario",
-        desc: "Presiona '+ Agregar Usuario'. Introduce Nombre, Email, Contraseña y selecciona el Rol.",
-        uiHint: "Roles: Admin | Vendedor | Usuario (Operador)",
+        title: "Crear Cuenta de Usuario",
+        desc: "Presiona '+ Agregar Usuario'. Ingresa Nombre, Correo Electrónico, Contraseña y selecciona el Rol.",
+        uiHint: "Roles: Admin | Vendedor | Operador",
       },
       {
         step: 3,
-        title: "Activar o Desactivar Accesos",
-        desc: "Puedes cambiar contraseñas, editar roles o desactivar el acceso temporal de cualquier usuario en cualquier momento.",
-        uiHint: "Interruptor de estado: Activo / Inactivo",
+        title: "Gestionar Contraseñas y Accesos",
+        desc: "Puedes cambiar contraseñas, editar roles o suspender accesos desactivando el interruptor de estado.",
+        uiHint: "Estado: Activo / Inactivo",
       },
     ],
-    tip: "Asigna rol 'Vendedor' a las asesoras comerciales para que no tengan acceso a los módulos de Gastos, Compras ni Configuración del sistema.",
+    tip: "El rol 'Vendedor' oculta automáticamente los módulos financieros delicados como Gastos, Compras y Usuarios.",
     visualMock: {
-      type: "badges",
-      labels: ["Admin (Acceso Total)", "Vendedor (Comercial)", "Operador (Logística)"],
+      type: "table",
+      labels: ["Admin (Control Total)", "Vendedor (Ventas & Clientes)", "Operador (Logística)"],
     },
   },
 ];
 
-/* ─── FAQs Data ─── */
+/* ─── Expanded FAQs Data ─── */
 const FAQS: FAQItem[] = [
   {
     id: "faq-1",
     category: "ventas",
     question: "¿Qué diferencia hay entre una Cotización (COT) y una Nota de Entrega (NE)?",
-    answer: "La Cotización (COT) es una propuesta comercial informativa para el cliente y NO descuenta mercancía del inventario. La Nota de Entrega (NE) es un documento formal de venta que descuenta inmediatamente las piezas del stock disponible.",
+    answer: "La Cotización (COT) es una propuesta comercial informativa para el cliente y NO descuenta mercancía del inventario. La Nota de Entrega (NE) es un documento formal de venta que descuenta inmediatamente las piezas del stock disponible y genera el cobro.",
     tip: "Puedes convertir cualquier Cotización a Nota de Entrega con un solo clic desde el menú de la venta.",
     roles: ["admin", "vendedor", "usuario"],
   },
   {
     id: "faq-2",
     category: "finanzas",
-    question: "¿Qué ocurre con las ventas si cambia la tasa de cambio durante el día?",
-    answer: "El precio base de todos los uniformes se mantiene en dólares (USD). Al actualizar la tasa de cambio en Configuración, los montos equivalentes en Bolívares se recalculan automáticamente para los nuevos comprobantes. Las Notas de Entrega ya emitidas conservan la tasa histórica con la que fueron creadas.",
-    tip: "Revisa la tasa activa en la parte inferior de la barra lateral antes de facturar.",
+    question: "¿Qué ocurre con los montos si cambia la tasa de cambio durante la jornada?",
+    answer: "El precio base de todos los uniformes está fijado en dólares (USD). Al actualizar la tasa de cambio en Configuración, los precios equivalentes en Bolívares se recalculan automáticamente en el catálogo y nuevas cotizaciones. Las Notas de Entrega emitidas con anterioridad congelan la tasa histórica del momento en que se crearon.",
+    tip: "Revisa la tasa activa en la parte inferior de la barra lateral antes de presupuestar.",
     roles: ["admin", "vendedor", "usuario"],
   },
   {
     id: "faq-3",
     category: "inventario",
-    question: "¿Cómo funciona la alerta de Stock Bajo?",
-    answer: "En Configuración ➔ Umbral de Stock se define la cantidad crítica (por defecto 5 unidades). Cuando la existencia de cualquier talla/modelo cae por debajo de esa cifra, el sistema resalta el ítem en amarillo y envía una notificación de advertencia.",
+    question: "¿Cómo funciona la alerta de Stock Bajo y cómo se configura?",
+    answer: "En Configuración ➔ Umbral de Stock se define el número mínimo de piezas (por defecto 5 unidades). Cuando la existencia de cualquier modelo o talla cae por debajo de esa cifra, la app resalta la prenda en color amarillo/rojo y genera una notificación de alerta.",
     roles: ["admin", "vendedor", "usuario"],
   },
   {
     id: "faq-4",
     category: "consignacion",
-    question: "¿Qué pasa si un cliente devuelve prendas de consignación sin vender?",
-    answer: "Ingresa al módulo de Consignación, busca el registro activo y presiona 'Registrar Devolución'. Selecciona las prendas exactas devueltas. Las unidades regresarán automáticamente al inventario disponible y el saldo pendiente del cliente se reducirá proporcionalmente.",
+    question: "¿Qué debo hacer si un cliente devuelve prendas de consignación no vendidas?",
+    answer: "Ingresa al módulo de Consignación, busca el registro del aliado y presiona 'Registrar Devolución'. Marca las prendas exactas que están retornando. Las unidades ingresarán nuevamente al inventario disponible para la venta y el saldo adeudado por el aliado se descontará.",
     roles: ["admin", "vendedor", "usuario"],
   },
   {
     id: "faq-5",
     category: "inicio",
-    question: "¿Puedo usar la aplicación desde mi teléfono o tablet?",
-    answer: "¡Sí! KUniformes es una PWA (Aplicación Web Progresiva) 100% responsiva. Al abrir la app en tu navegador móvil, presiona 'Instalar App' o 'Agregar a Pantalla de Inicio' para usarla a pantalla completa como una aplicación móvil nativa.",
+    question: "¿Puedo instalar la aplicación en mi teléfono iPhone o Android?",
+    answer: "¡Sí! KUniformes es una PWA (Aplicación Web Progresiva). En iPhone abre Safari ➔ Compartir ➔ 'Agregar a inicio'. En Android abre Chrome ➔ 'Instalar aplicación'. Se creará un icono directo en tu celular para usar la app a pantalla completa.",
     roles: ["admin", "vendedor", "usuario"],
   },
   {
     id: "faq-6",
     category: "finanzas",
-    question: "¿Por qué un usuario con rol 'Vendedor' no ve los módulos de Gastos o Compras?",
-    answer: "Por seguridad de la empresa, el rol Vendedor solo tiene permiso para operar en Ventas, Catálogo, Clientes, Consignación y Despachos. El acceso a egresos, compras de telas y administración de usuarios está reservado exclusivamente para Administradores.",
+    question: "¿Por qué el rol 'Vendedor' no puede ver Gastos ni Compras?",
+    answer: "Por seguridad organizativa, las vendedoras tienen un perfil enfocado comercialmente en Catálogo, Inventario, Ventas, Clientes, Consignación y Despachos. Los registros de compras de insumos, egresos generales y gestión de usuarios están restringidos al rol Administrador.",
     roles: ["admin"],
   },
   {
     id: "faq-7",
     category: "inventario",
-    question: "¿Cómo comparto el Catálogo PDF por WhatsApp?",
-    answer: "Dirígete a 'Catálogo', aplica los filtros si deseas un catálogo específico (ej. Gorros o Batas de Dama) y presiona 'Descargar Catálogo PDF'. El documento descargado se guardará en tu dispositivo listo para adjuntarlo en tus chats de WhatsApp.",
+    question: "¿Cómo envío el catálogo por WhatsApp a un cliente?",
+    answer: "Ve a 'Catálogo', aplica los filtros si deseas un modelo en específico (ej. Gorros o Batas) y presiona 'Descargar Catálogo PDF'. El archivo descargado quedará guardado en tu dispositivo listo para enviarlo por WhatsApp.",
     roles: ["admin", "vendedor", "usuario"],
   },
   {
     id: "faq-8",
     category: "despachos",
-    question: "¿Cómo se registra una devolución por desperfecto de fábrica?",
-    answer: "En el módulo 'Devoluciones' ➔ '+ Registrar Devolución', selecciona la Nota de Entrega, marca el motivo 'Defecto de Fábrica' y desmarca la opción 'Reingresar a inventario disponible'. Esto dejará constancia de la baja sin inflar el inventario apto para venta.",
+    question: "¿Cómo se procesa una devolución por falla de fabricación?",
+    answer: "En 'Devoluciones' ➔ '+ Registrar Devolución', selecciona la Nota de Entrega, marca el motivo 'Defecto de Fábrica' y desmarca la opción 'Reingresar a inventario disponible'. La prenda quedará dada de baja por falla sin inflar el stock vendible.",
     roles: ["admin", "vendedor", "usuario"],
   },
   {
     id: "faq-9",
     category: "inicio",
-    question: "¿Dónde puedo consultar quién modificó un precio o anuló un comprobante?",
-    answer: "Si eres Administrador, puedes entrar al módulo 'Actividad' en el menú lateral. Allí se muestra la bitácora de auditoría detallada con la fecha, hora, usuario y acción exacta realizada en el sistema.",
+    question: "¿Dónde consulto quién editó un precio o modificó un inventario?",
+    answer: "Las usuarias con rol Administrador pueden ingresar al módulo 'Actividad' en el menú lateral. Allí se guarda la bitácora de auditoría detallada con la fecha, hora, usuario y cambio exacto realizado en la base de datos.",
     roles: ["admin"],
   },
   {
     id: "faq-10",
     category: "ventas",
-    question: "¿Se pueden registrar pagos parciales en las ventas a crédito?",
-    answer: "Sí. Al abrir el detalle de una Nota de Entrega, puedes presionar 'Registrar Pago / Abono', indicar el monto recibido (en USD o Bs) y la forma de pago (Pago Móvil, Zelle, Efectivo, Transferencia). El sistema calculará el saldo pendiente acumulado.",
+    question: "¿Se pueden registrar pagos parciales en las ventas?",
+    answer: "Sí. Al abrir la Nota de Entrega, presiona 'Registrar Pago / Abono', introduce el monto recibido (en USD, Pago Móvil, Zelle o Efectivo en Bs) y la app calculará automáticamente el saldo pendiente del cliente.",
+    roles: ["admin", "vendedor", "usuario"],
+  },
+  {
+    id: "faq-11",
+    category: "inventario",
+    question: "¿Qué significan los géneros / modelos 'Damas', 'Caballeros', 'Unisex' y 'Niños'?",
+    answer: "Son etiquetas de clasificación para facilitar la búsqueda en el catálogo. Permiten que la vendedora filtre instantáneamente las prendas según la anatomía o público objetivo que solicita el cliente.",
+    roles: ["admin", "vendedor", "usuario"],
+  },
+  {
+    id: "faq-12",
+    category: "finanzas",
+    question: "¿Qué pasa si se pierde la conexión a Internet temporalmente?",
+    answer: "Gracias al Service Worker de la PWA, la app mantendrá cargada la interfaz en pantalla para consultar datos de catálogo e inventario. Una vez vuelva la señal, las acciones se sincronizarán con la base de datos en el servidor de Cloudflare.",
     roles: ["admin", "vendedor", "usuario"],
   },
 ];
@@ -401,14 +479,16 @@ const FAQS: FAQItem[] = [
 export default function ManualPage() {
   const user = useUser();
   const [activeCategory, setActiveCategory] = useState<CategoryTab>("todos");
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedFaq, setExpandedFaq] = useState<string | null>("faq-1");
 
-  const currentRole = user?.role || "admin";
+  const userRole = user?.role || "admin";
 
-  /* Category List */
+  /* Categories list */
   const categories: Array<{ id: CategoryTab; label: string; icon: string }> = [
     { id: "todos", label: "Todos los Temas", icon: "📚" },
+    { id: "diagramas", label: "Diagramas de Proceso", icon: "📊" },
     { id: "inicio", label: "Inicio & PWA", icon: "📱" },
     { id: "inventario", label: "Inventario & Catálogo", icon: "📦" },
     { id: "ventas", label: "Ventas & Cotizaciones", icon: "🧾" },
@@ -418,18 +498,27 @@ export default function ManualPage() {
     { id: "faqs", label: "Preguntas Frecuentes (FAQs)", icon: "❓" },
   ];
 
-  /* Filter Workflows based on active category, search, and user role access */
+  /* Roles filter options */
+  const roleFilters: Array<{ id: RoleFilter; label: string; icon: string }> = [
+    { id: "all", label: "Todos los Roles", icon: "👥" },
+    { id: "admin", label: "Administradora", icon: "👑" },
+    { id: "vendedor", label: "Vendedora", icon: "🛍️" },
+    { id: "usuario", label: "Operador", icon: "📦" },
+  ];
+
+  /* Filter Workflows */
   const filteredWorkflows = useMemo(() => {
     return WORKFLOWS.filter((wf) => {
-      // Role filter
-      if (!wf.roles.includes(currentRole as any)) return false;
+      // Role Access check
+      if (roleFilter !== "all" && !wf.roles.includes(roleFilter)) return false;
+      if (!wf.roles.includes(userRole as any)) return false;
 
-      // Category filter
-      if (activeCategory !== "todos" && activeCategory !== "faqs" && wf.category !== activeCategory) {
+      // Category Filter
+      if (activeCategory !== "todos" && activeCategory !== "diagramas" && activeCategory !== "faqs" && wf.category !== activeCategory) {
         return false;
       }
 
-      // Search query filter
+      // Search Query
       if (searchQuery.trim() !== "") {
         const q = searchQuery.toLowerCase();
         const matchTitle = wf.title.toLowerCase().includes(q);
@@ -440,20 +529,18 @@ export default function ManualPage() {
 
       return true;
     });
-  }, [activeCategory, searchQuery, currentRole]);
+  }, [activeCategory, roleFilter, searchQuery, userRole]);
 
-  /* Filter FAQs based on search and role */
+  /* Filter FAQs */
   const filteredFaqs = useMemo(() => {
     return FAQS.filter((faq) => {
-      // Role filter
-      if (!faq.roles.includes(currentRole as any)) return false;
+      if (roleFilter !== "all" && !faq.roles.includes(roleFilter)) return false;
+      if (!faq.roles.includes(userRole as any)) return false;
 
-      // Category filter
       if (activeCategory !== "todos" && activeCategory !== "faqs" && faq.category !== activeCategory) {
         return false;
       }
 
-      // Search filter
       if (searchQuery.trim() !== "") {
         const q = searchQuery.toLowerCase();
         return (
@@ -464,192 +551,273 @@ export default function ManualPage() {
 
       return true;
     });
-  }, [activeCategory, searchQuery, currentRole]);
+  }, [activeCategory, roleFilter, searchQuery, userRole]);
 
   const toggleFaq = (id: string) => {
     setExpandedFaq(expandedFaq === id ? null : id);
   };
 
   return (
-    <div style={{ paddingBottom: 48 }}>
-      {/* ── Header Visual Banner ── */}
+    <div style={{ paddingBottom: 60 }}>
+      {/* ── Banner Principal ── */}
       <div
         style={{
-          background: "linear-gradient(135deg, rgba(20, 24, 33, 0.95), rgba(30, 41, 59, 0.98))",
+          background: "linear-gradient(135deg, #0F172A 0%, #1E293B 100%)",
           borderRadius: 20,
-          padding: "28px 32px",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
-          boxShadow: "0 12px 32px rgba(0, 0, 0, 0.2)",
+          padding: "32px 36px",
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+          boxShadow: "0 16px 36px rgba(15, 23, 42, 0.25)",
           marginBottom: 28,
-          color: "#fff",
-          position: "relative",
-          overflow: "hidden",
+          color: "#FFFFFF",
         }}
       >
-        <div style={{ position: "relative", zIndex: 2 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-            <span
-              style={{
-                fontSize: 28,
-                background: "rgba(255, 255, 255, 0.1)",
-                padding: "6px 12px",
-                borderRadius: 12,
-                backdropFilter: "blur(4px)",
-              }}
-            >
-              📖
-            </span>
-            <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: "-0.02em", color: "#F8FAFC" }}>
-              Manual de Uso Interactivo & Centro de Ayuda
-            </h1>
-          </div>
-          <p style={{ margin: 0, color: "#94A3B8", fontSize: 15, maxWidth: 720, lineHeight: 1.5 }}>
-            Aprende a utilizar de forma rápida y visual todos los módulos del sistema <strong>KUniformes</strong>: Inventario, Catálogos PDF, Ventas, Consignaciones, Tasas de Cambio y más.
-          </p>
-
-          {/* Quick Search Input */}
-          <div style={{ marginTop: 20, maxWidth: 540, position: "relative" }}>
-            <input
-              type="text"
-              placeholder="🔍 Buscar tema, función o pregunta (ej. 'Catálogo PDF', 'Nota de entrega', 'Tasa dólar')..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "12px 18px",
-                borderRadius: 12,
-                border: "1px solid rgba(255, 255, 255, 0.15)",
-                background: "rgba(15, 23, 42, 0.6)",
-                color: "#fff",
-                fontSize: 14,
-                outline: "none",
-                backdropFilter: "blur(6px)",
-                boxShadow: "inset 0 2px 4px rgba(0,0,0,0.2)",
-              }}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+              <span
                 style={{
-                  position: "absolute",
-                  right: 14,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  background: "none",
-                  border: "none",
-                  color: "#94A3B8",
-                  cursor: "pointer",
-                  fontSize: 16,
+                  fontSize: 26,
+                  background: "rgba(255, 255, 255, 0.1)",
+                  padding: "6px 12px",
+                  borderRadius: 12,
                 }}
               >
-                ✕
-              </button>
-            )}
+                📘
+              </span>
+              <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0, letterSpacing: "-0.02em" }}>
+                Manual de Uso Completo & Centro Visual KUniformes
+              </h1>
+            </div>
+            <p style={{ margin: 0, color: "#94A3B8", fontSize: 15, maxWidth: 760, lineHeight: 1.5 }}>
+              Guía interactiva paso a paso para dominar todos los módulos del sistema: Inventario, Cotizaciones, Notas de Entrega, Consignación, Catálogos PDF y Tasas de Cambio.
+            </p>
           </div>
+
+          <div
+            style={{
+              padding: "8px 14px",
+              borderRadius: 12,
+              background: "rgba(37, 99, 235, 0.2)",
+              border: "1px solid rgba(59, 130, 246, 0.4)",
+              fontSize: 13,
+              color: "#93C5FD",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <span>👤 Tu Rol Activo:</span>
+            <strong style={{ color: "#FFF", textTransform: "capitalize" }}>
+              {userRole === "admin" ? "Administradora" : userRole === "usuario" ? "Operador" : "Vendedora"}
+            </strong>
+          </div>
+        </div>
+
+        {/* Buscador Rápido */}
+        <div style={{ marginTop: 24, position: "relative", maxWidth: 640 }}>
+          <input
+            type="text"
+            placeholder="🔍 Buscar función, proceso o duda (ej. 'Cotización', 'PDF 2x2', 'Consignación', 'Stock bajo')..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "14px 20px",
+              borderRadius: 14,
+              border: "1px solid rgba(255, 255, 255, 0.2)",
+              background: "rgba(15, 23, 42, 0.7)",
+              color: "#FFFFFF",
+              fontSize: 15,
+              outline: "none",
+              boxShadow: "inset 0 2px 4px rgba(0,0,0,0.3)",
+            }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              style={{
+                position: "absolute",
+                right: 16,
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "none",
+                border: "none",
+                color: "#94A3B8",
+                cursor: "pointer",
+                fontSize: 18,
+              }}
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ── Category Filters Nav ── */}
-      <div
-        style={{
-          display: "flex",
-          gap: 10,
-          flexWrap: "wrap",
-          marginBottom: 28,
-        }}
-      >
-        {categories.map((cat) => {
-          const isActive = activeCategory === cat.id;
-          return (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "10px 16px",
-                borderRadius: 12,
-                fontSize: 14,
-                fontWeight: isActive ? 600 : 500,
-                border: isActive
-                  ? "1px solid var(--accent, #2563EB)"
-                  : "1px solid var(--border-color, rgba(226, 232, 240, 0.8))",
-                background: isActive
-                  ? "var(--accent, #2563EB)"
-                  : "var(--bg-card, #FFFFFF)",
-                color: isActive ? "#FFFFFF" : "var(--text-main, #1E293B)",
-                cursor: "pointer",
-                transition: "all 0.2s ease",
-                boxShadow: isActive ? "0 4px 12px rgba(37, 99, 235, 0.25)" : "none",
-              }}
-            >
-              <span>{cat.icon}</span>
-              <span>{cat.label}</span>
-            </button>
-          );
-        })}
+      {/* ── Filtros por Rol y Categoría ── */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 28 }}>
+        {/* Selector de Rol */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            Filtrar por Rol:
+          </span>
+          {roleFilters.map((r) => {
+            const isActive = roleFilter === r.id;
+            return (
+              <button
+                key={r.id}
+                onClick={() => setRoleFilter(r.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 14px",
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: isActive ? 600 : 500,
+                  border: isActive ? "1px solid #2563EB" : "1px solid #CBD5E1",
+                  background: isActive ? "#EFF6FF" : "#FFFFFF",
+                  color: isActive ? "#1D4ED8" : "#475569",
+                  cursor: "pointer",
+                }}
+              >
+                <span>{r.icon}</span>
+                <span>{r.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Pestañas de Categoría */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {categories.map((cat) => {
+            const isActive = activeCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "10px 16px",
+                  borderRadius: 12,
+                  fontSize: 14,
+                  fontWeight: isActive ? 600 : 500,
+                  border: isActive ? "1px solid #2563EB" : "1px solid #E2E8F0",
+                  background: isActive ? "#2563EB" : "#FFFFFF",
+                  color: isActive ? "#FFFFFF" : "#1E293B",
+                  cursor: "pointer",
+                  boxShadow: isActive ? "0 4px 12px rgba(37, 99, 235, 0.2)" : "none",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <span>{cat.icon}</span>
+                <span>{cat.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* ── SECTION 1: VISUAL WORKFLOW GUIDES ── */}
-      {activeCategory !== "faqs" && (
+      {/* ── SECCIÓN: DIAGRAMAS DE PROCESO (FLUJOGRAMAS VISUALES) ── */}
+      {(activeCategory === "todos" || activeCategory === "diagramas") && (
         <div style={{ marginBottom: 40 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 20,
-            }}
-          >
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-main, #0F172A)", margin: 0 }}>
-              💡 Guías Visuales Paso a Paso ({filteredWorkflows.length})
-            </h2>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: "#0F172A", marginBottom: 16 }}>
+            📊 Diagramas de Procesos Principales
+          </h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20 }}>
+            {DIAGRAMS.map((diag) => (
+              <div
+                key={diag.id}
+                style={{
+                  background: "#FFFFFF",
+                  borderRadius: 18,
+                  border: "1px solid #E2E8F0",
+                  padding: 22,
+                  boxShadow: "0 4px 16px rgba(0, 0, 0, 0.04)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <span style={{ fontSize: 24 }}>{diag.icon}</span>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>
+                    {diag.title}
+                  </h3>
+                </div>
+                <p style={{ fontSize: 13, color: "#64748B", margin: "0 0 16px 0", lineHeight: 1.4 }}>
+                  {diag.desc}
+                </p>
+
+                {/* Nodes Timeline */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {diag.nodes.map((node, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: "10px 14px",
+                        borderRadius: 10,
+                        background: "#F8FAFC",
+                        borderLeft: `4px solid ${node.color}`,
+                        display: "flex",
+                        flexDirection: "column",
+                      }}
+                    >
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#1E293B" }}>
+                        {node.title}
+                      </span>
+                      <span style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
+                        {node.subtitle}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
+        </div>
+      )}
+
+      {/* ── SECCIÓN: GUÍAS PASO A PASO ── */}
+      {activeCategory !== "diagramas" && activeCategory !== "faqs" && (
+        <div style={{ marginBottom: 40 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: "#0F172A", marginBottom: 16 }}>
+            💡 Guías de Uso Paso a Paso ({filteredWorkflows.length})
+          </h2>
 
           {filteredWorkflows.length === 0 ? (
             <div
               style={{
-                padding: 36,
+                padding: 40,
                 textAlign: "center",
-                background: "var(--bg-card, #FFFFFF)",
+                background: "#FFFFFF",
                 borderRadius: 16,
-                border: "1px dashed var(--border-color, #CBD5E1)",
+                border: "1px dashed #CBD5E1",
                 color: "#64748B",
               }}
             >
-              <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
-              <div style={{ fontSize: 16, fontWeight: 600 }}>No se encontraron guías con tu búsqueda</div>
-              <div style={{ fontSize: 14, marginTop: 4 }}>Prueba buscando con otros términos o cambia la categoría arriba.</div>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>🔎</div>
+              <div style={{ fontSize: 16, fontWeight: 600 }}>No se encontraron guías para tu búsqueda o filtro de rol</div>
+              <div style={{ fontSize: 14, marginTop: 4 }}>Intenta cambiar el filtro de rol a 'Todos los Roles' o modificar tu consulta.</div>
             </div>
           ) : (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
-                gap: 24,
-              }}
-            >
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))", gap: 24 }}>
               {filteredWorkflows.map((wf) => (
                 <div
                   key={wf.id}
                   style={{
-                    background: "var(--bg-card, #FFFFFF)",
+                    background: "#FFFFFF",
                     borderRadius: 18,
-                    border: "1px solid var(--border-color, #E2E8F0)",
+                    border: "1px solid #E2E8F0",
                     padding: 24,
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "space-between",
                     boxShadow: "0 4px 16px rgba(0, 0, 0, 0.04)",
-                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
                   }}
                 >
                   <div>
-                    {/* Header Card */}
                     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontSize: 24 }}>{wf.icon}</span>
+                        <span style={{ fontSize: 26 }}>{wf.icon}</span>
                         <div>
                           <span
                             style={{
@@ -660,7 +828,6 @@ export default function ManualPage() {
                               borderRadius: 6,
                               background: "#EFF6FF",
                               color: "#2563EB",
-                              letterSpacing: "0.05em",
                             }}
                           >
                             {wf.badgeText}
@@ -676,7 +843,7 @@ export default function ManualPage() {
                       {wf.summary}
                     </p>
 
-                    {/* Step by Step Timeline */}
+                    {/* Timeline de Pasos */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
                       {wf.steps.map((st) => (
                         <div key={st.step} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
@@ -726,7 +893,7 @@ export default function ManualPage() {
                       ))}
                     </div>
 
-                    {/* Visual UI Mockup Snippet */}
+                    {/* Mockup de Interfaz */}
                     {wf.visualMock && (
                       <div
                         style={{
@@ -737,8 +904,8 @@ export default function ManualPage() {
                           marginBottom: 16,
                         }}
                       >
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
-                          <span>🖼️ Vista del Sistema</span>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", marginBottom: 8 }}>
+                          🖼️ Vista en Pantalla
                         </div>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                           {wf.visualMock.labels?.map((lbl, idx) => (
@@ -752,7 +919,6 @@ export default function ManualPage() {
                                 fontSize: 12,
                                 color: "#0F172A",
                                 fontWeight: 500,
-                                boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
                               }}
                             >
                               {lbl}
@@ -763,7 +929,6 @@ export default function ManualPage() {
                     )}
                   </div>
 
-                  {/* Pro Tip Footer */}
                   {wf.tip && (
                     <div
                       style={{
@@ -789,21 +954,12 @@ export default function ManualPage() {
         </div>
       )}
 
-      {/* ── SECTION 2: PREGUNTAS FRECUENTES (FAQS) ACCORDION ── */}
+      {/* ── SECCIÓN: PREGUNTAS FRECUENTES (FAQS) ACCORDION ── */}
       {(activeCategory === "todos" || activeCategory === "faqs") && (
         <div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 20,
-            }}
-          >
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-main, #0F172A)", margin: 0 }}>
-              ❓ Preguntas Frecuentes & Casos Prácticos ({filteredFaqs.length})
-            </h2>
-          </div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: "#0F172A", marginBottom: 16 }}>
+            ❓ Preguntas Frecuentes ({filteredFaqs.length})
+          </h2>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {filteredFaqs.map((faq) => {
@@ -812,13 +968,10 @@ export default function ManualPage() {
                 <div
                   key={faq.id}
                   style={{
-                    background: "var(--bg-card, #FFFFFF)",
+                    background: "#FFFFFF",
                     borderRadius: 14,
-                    border: isOpen
-                      ? "1px solid var(--accent, #2563EB)"
-                      : "1px solid var(--border-color, #E2E8F0)",
+                    border: isOpen ? "1px solid #2563EB" : "1px solid #E2E8F0",
                     overflow: "hidden",
-                    transition: "all 0.2s ease",
                     boxShadow: isOpen ? "0 4px 12px rgba(37, 99, 235, 0.08)" : "none",
                   }}
                 >
@@ -892,34 +1045,6 @@ export default function ManualPage() {
           </div>
         </div>
       )}
-
-      {/* ── Footer Support Banner ── */}
-      <div
-        style={{
-          marginTop: 40,
-          padding: "20px 24px",
-          background: "linear-gradient(90deg, #EFF6FF, #F8FAFC)",
-          borderRadius: 16,
-          border: "1px solid #BFDBFE",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 16,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 28 }}>💬</span>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#1E3A8A" }}>
-              ¿Tienes alguna duda adicional sobre KUniformes?
-            </div>
-            <div style={{ fontSize: 13, color: "#3B82F6", marginTop: 2 }}>
-              Consulta con la administración o tu supervisora comercial para soporte directo.
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
