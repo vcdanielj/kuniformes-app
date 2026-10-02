@@ -765,14 +765,14 @@ export async function deleteUserAction(id: string) {
 export async function addColor(code: string, name: string, hex: string) {
   try {
     await requireStaff();
-    await db.insert(colors).values({
+    const res = await db.insert(colors).values({
       code,
       name,
       hex,
       sortOrder: 0,
-    });
+    }).returning();
     revalidatePath("/configuracion");
-    return { success: true };
+    return { success: true, color: res[0] };
   } catch (e: any) {
     return { success: false, error: e.message || "Error al agregar color" };
   }
@@ -1505,6 +1505,284 @@ export async function updateModelAction(data: {
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message || "Error al actualizar modelo" };
+  }
+}
+
+export async function addColorsToModelAction(modelId: string, colorIds: number[]) {
+  try {
+    await requireStaff();
+
+    const [modelRecord] = await db.select().from(models).where(eq(models.id, modelId)).limit(1);
+    if (!modelRecord) {
+      return { success: false, error: "Modelo no encontrado" };
+    }
+
+    if (!Array.isArray(colorIds) || colorIds.length === 0) {
+      return { success: false, error: "Seleccione al menos un color para agregar." };
+    }
+
+    const selectedColors = await db.select().from(colors).where(inArray(colors.id, colorIds));
+    if (selectedColors.length === 0) {
+      return { success: false, error: "Los colores seleccionados no existen en el catálogo." };
+    }
+
+    const existingModelColors = await db
+      .select({ colorId: modelColors.colorId })
+      .from(modelColors)
+      .where(eq(modelColors.modelId, modelId));
+    const existingColorIds = new Set<number>(existingModelColors.map((mc: any) => mc.colorId));
+
+    const colorsToAdd = selectedColors.filter((c: any) => !existingColorIds.has(c.id));
+    if (colorsToAdd.length === 0) {
+      return { success: false, error: "Todos los colores seleccionados ya están asignados a este modelo." };
+    }
+
+    // Determine target sizes if model has sizes
+    let targetSizes: { sizeId: number; name: string }[] = [];
+    if (modelRecord.type === "con_tallas") {
+      const linkedSizes = await db
+        .select({ sizeId: modelSizes.sizeId, name: sizes.name })
+        .from(modelSizes)
+        .innerJoin(sizes, eq(modelSizes.sizeId, sizes.id))
+        .where(eq(modelSizes.modelId, modelId));
+
+      targetSizes = linkedSizes;
+
+      // Fallback: If no linked sizes in modelSizes, check existing SKUs for this model
+      if (targetSizes.length === 0) {
+        const skuSizes = await db
+          .select({ sizeId: skus.sizeId, name: sizes.name })
+          .from(skus)
+          .innerJoin(sizes, eq(skus.sizeId, sizes.id))
+          .where(eq(skus.modelId, modelId));
+        const seen = new Set<number>();
+        for (const s of skuSizes) {
+          if (s.sizeId && !seen.has(s.sizeId)) {
+            seen.add(s.sizeId);
+            targetSizes.push({ sizeId: s.sizeId, name: s.name });
+          }
+        }
+      }
+
+      // If still empty, link all standard sizes in the system
+      if (targetSizes.length === 0) {
+        const allSizes = await db.select().from(sizes);
+        targetSizes = allSizes.map((s: any) => ({ sizeId: s.id, name: s.name }));
+        for (const s of targetSizes) {
+          await db.insert(modelSizes).values({ modelId, sizeId: s.sizeId });
+        }
+      }
+    }
+
+    await runInTx(async (tx: any) => {
+      for (const color of colorsToAdd) {
+        // 1. Link color to model
+        await tx.insert(modelColors).values({
+          modelId,
+          colorId: color.id,
+        });
+
+        // 2. Generate SKUs
+        if (modelRecord.type === "con_tallas") {
+          for (const size of targetSizes) {
+            const composite = generateSkuCode(modelId, color.code, size.name);
+            const [existing] = await tx
+              .select({ id: skus.id })
+              .from(skus)
+              .where(eq(skus.compositeCode, composite))
+              .limit(1);
+
+            if (!existing) {
+              await tx.insert(skus).values({
+                modelId,
+                colorId: color.id,
+                sizeId: size.sizeId,
+                compositeCode: composite,
+                stock: 0,
+                avgCost: modelRecord.avgCost || 0,
+              });
+            }
+          }
+        } else {
+          // sin_tallas
+          const composite = generateSkuCode(modelId, color.code);
+          const [existing] = await tx
+            .select({ id: skus.id })
+            .from(skus)
+            .where(eq(skus.compositeCode, composite))
+            .limit(1);
+
+          if (!existing) {
+            await tx.insert(skus).values({
+              modelId,
+              colorId: color.id,
+              sizeId: null,
+              compositeCode: composite,
+              stock: 0,
+              avgCost: modelRecord.avgCost || 0,
+            });
+          }
+        }
+      }
+
+      const colorNames = colorsToAdd.map((c: any) => `${c.name} (${c.code})`).join(", ");
+      await logAuditAction({
+        action: "MODIFICAR",
+        entity: "model",
+        entityId: modelId,
+        details: `Colores agregados al modelo ${modelRecord.name} (${modelId}): ${colorNames}`,
+      });
+    });
+
+    revalidatePath("/inventario");
+    revalidatePath("/catalogo");
+    revalidatePath("/ventas");
+    revalidatePath("/consignacion");
+
+    return { success: true, count: colorsToAdd.length };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al agregar colores al modelo" };
+  }
+}
+
+export async function addColorToModelAction(modelId: string, colorId: number) {
+  return addColorsToModelAction(modelId, [colorId]);
+}
+
+export async function removeColorFromModelAction(modelId: string, colorId: number) {
+  try {
+    await requireStaff();
+
+    const [modelRecord] = await db.select().from(models).where(eq(models.id, modelId)).limit(1);
+    if (!modelRecord) {
+      return { success: false, error: "Modelo no encontrado" };
+    }
+
+    const [colorRecord] = await db.select().from(colors).where(eq(colors.id, colorId)).limit(1);
+    if (!colorRecord) {
+      return { success: false, error: "Color no encontrado" };
+    }
+
+    const allModelColors = await db.select().from(modelColors).where(eq(modelColors.modelId, modelId));
+    if (allModelColors.length <= 1) {
+      return {
+        success: false,
+        error: "No se puede quitar el color: el modelo debe tener al menos un color registrado.",
+      };
+    }
+
+    const hasColor = allModelColors.some((mc: any) => mc.colorId === colorId);
+    if (!hasColor) {
+      return { success: false, error: "El modelo no tiene asignado este color." };
+    }
+
+    // Fetch all SKUs for this model + color
+    const colorSkus = await db
+      .select()
+      .from(skus)
+      .where(and(eq(skus.modelId, modelId), eq(skus.colorId, colorId)));
+    const skuIds = colorSkus.map((s: any) => s.id);
+
+    // Validation 1: Stock must be 0
+    const withStock = colorSkus.find((s: any) => s.stock !== 0);
+    if (withStock) {
+      return {
+        success: false,
+        error: `No se puede quitar el color ${colorRecord.name}: la variación ${withStock.compositeCode} tiene stock (${withStock.stock}). Ajuste el stock a 0 antes de quitarlo.`,
+      };
+    }
+
+    // Validation 2: Operational movement references
+    if (skuIds.length > 0) {
+      const [refSale] = await db
+        .select({ id: saleItems.id })
+        .from(saleItems)
+        .where(inArray(saleItems.skuId, skuIds))
+        .limit(1);
+      if (refSale) {
+        return {
+          success: false,
+          error: `No se puede quitar el color ${colorRecord.name}: existen ventas asociadas a este color. Para dejar de ofrecerlo, mantenga su stock en 0.`,
+        };
+      }
+
+      const [refQuote] = await db
+        .select({ id: quoteItems.id })
+        .from(quoteItems)
+        .where(inArray(quoteItems.skuId, skuIds))
+        .limit(1);
+      if (refQuote) {
+        return {
+          success: false,
+          error: `No se puede quitar el color ${colorRecord.name}: existen cotizaciones asociadas a este color.`,
+        };
+      }
+
+      const [refPurchase] = await db
+        .select({ id: purchaseItems.id })
+        .from(purchaseItems)
+        .where(inArray(purchaseItems.skuId, skuIds))
+        .limit(1);
+      if (refPurchase) {
+        return {
+          success: false,
+          error: `No se puede quitar el color ${colorRecord.name}: existen compras de mercancía asociadas a este color.`,
+        };
+      }
+
+      const [refConsign] = await db
+        .select({ id: consignmentItems.id })
+        .from(consignmentItems)
+        .where(inArray(consignmentItems.skuId, skuIds))
+        .limit(1);
+      if (refConsign) {
+        return {
+          success: false,
+          error: `No se puede quitar el color ${colorRecord.name}: existen consignaciones asociadas a este color.`,
+        };
+      }
+
+      const [refReturn] = await db
+        .select({ id: returnItems.id })
+        .from(returnItems)
+        .where(or(inArray(returnItems.skuId, skuIds), inArray(returnItems.replacementSkuId, skuIds)))
+        .limit(1);
+      if (refReturn) {
+        return {
+          success: false,
+          error: `No se puede quitar el color ${colorRecord.name}: existen devoluciones asociadas a este color.`,
+        };
+      }
+    }
+
+    await runInTx(async (tx: any) => {
+      if (skuIds.length > 0) {
+        await tx.delete(stockAdjustments).where(inArray(stockAdjustments.skuId, skuIds));
+        await tx.delete(skus).where(and(eq(skus.modelId, modelId), eq(skus.colorId, colorId)));
+      }
+      await tx
+        .delete(modelColorImages)
+        .where(and(eq(modelColorImages.modelId, modelId), eq(modelColorImages.colorId, colorId)));
+      await tx
+        .delete(modelColors)
+        .where(and(eq(modelColors.modelId, modelId), eq(modelColors.colorId, colorId)));
+
+      await logAuditAction({
+        action: "ELIMINAR",
+        entity: "model",
+        entityId: modelId,
+        details: `Color ${colorRecord.name} (${colorRecord.code}) quitado del modelo ${modelRecord.name} (${modelId})`,
+      });
+    });
+
+    revalidatePath("/inventario");
+    revalidatePath("/catalogo");
+    revalidatePath("/ventas");
+    revalidatePath("/consignacion");
+
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Error al quitar color del modelo" };
   }
 }
 

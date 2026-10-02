@@ -11,6 +11,10 @@ import {
   deleteModelAction,
   getConfigData,
   addCategory,
+  addColor,
+  addColorsToModelAction,
+  addColorToModelAction,
+  removeColorFromModelAction,
   upsertModelColorImageAction,
   deleteModelColorImageAction,
 } from "@/lib/db/actions";
@@ -252,6 +256,15 @@ export default function InventarioPage() {
   const [editCost, setEditCost] = useState("");
   const [editGender, setEditGender] = useState<"dama" | "caballero" | "unisex">("dama");
   const [editThreshold, setEditThreshold] = useState("3");
+
+  // Add Color to Model Modal State
+  const [showAddColorModal, setShowAddColorModal] = useState(false);
+  const [selectedNewColorIds, setSelectedNewColorIds] = useState<number[]>([]);
+  const [colorModalSearch, setColorModalSearch] = useState("");
+  const [showCreateColorInline, setShowCreateColorInline] = useState(false);
+  const [inlineColorCode, setInlineColorCode] = useState("");
+  const [inlineColorName, setInlineColorName] = useState("");
+  const [inlineColorHex, setInlineColorHex] = useState("#15151A");
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -564,6 +577,93 @@ export default function InventarioPage() {
     }
   }
 
+  async function handleAddColorsToModel(e?: FormSubmitEvent) {
+    if (e) e.preventDefault();
+    if (!detailId || selectedNewColorIds.length === 0) return;
+    setSubmitting(true);
+    setErrorMsg("");
+    try {
+      const res = await addColorsToModelAction(detailId, selectedNewColorIds);
+      if (res.success) {
+        setShowAddColorModal(false);
+        setSelectedNewColorIds([]);
+        setColorModalSearch("");
+        setShowCreateColorInline(false);
+        await loadDetailById(detailId);
+        await loadModels();
+      } else {
+        setErrorMsg(res.error || "Error al agregar colores al modelo.");
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || "Error al agregar colores.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleCreateAndAddColorInline(e: FormSubmitEvent) {
+    e.preventDefault();
+    if (!detailId || !inlineColorCode.trim() || !inlineColorName.trim()) return;
+    setSubmitting(true);
+    setErrorMsg("");
+    try {
+      const addRes = await addColor(inlineColorCode.trim(), inlineColorName.trim(), inlineColorHex.trim());
+      if (!addRes.success) {
+        setErrorMsg(addRes.error || "Error al registrar el nuevo color.");
+        return;
+      }
+
+      // Re-fetch config to get the newly added color
+      const config = await getConfigData();
+      setColorsDb(config.colors);
+
+      const createdColorId = (addRes as any)?.color?.id || config.colors.find((c: any) => c.code.toLowerCase() === inlineColorCode.trim().toLowerCase())?.id;
+      if (createdColorId) {
+        const attachRes = await addColorToModelAction(detailId, createdColorId);
+        if (attachRes.success) {
+          setShowAddColorModal(false);
+          setSelectedNewColorIds([]);
+          setColorModalSearch("");
+          setInlineColorCode("");
+          setInlineColorName("");
+          setShowCreateColorInline(false);
+          await loadDetailById(detailId);
+          await loadModels();
+        } else {
+          setErrorMsg(attachRes.error || "El color fue creado pero ocurrió un problema al vincularlo al modelo.");
+        }
+      } else {
+        setErrorMsg("Color creado, pero no se pudo determinar su ID para vincularlo.");
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || "Error al crear el color.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleRemoveColor(colorId: number, colorName: string, colorCode: string) {
+    if (!detailId) return;
+    if (!window.confirm(`¿Quitar el color ${colorName} (${colorCode}) del modelo? Se eliminarán los SKUs asociados a este color si no tienen stock ni historial.`)) {
+      return;
+    }
+    setSubmitting(true);
+    setErrorMsg("");
+    try {
+      const res = await removeColorFromModelAction(detailId, colorId);
+      if (res.success) {
+        await loadDetailById(detailId);
+        await loadModels();
+      } else {
+        setErrorMsg(res.error || "No se pudo quitar el color del modelo.");
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || "Error al quitar color.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   /* ─── Detail view ─── */
   if (detailId && detailModel) {
     return (
@@ -589,17 +689,19 @@ export default function InventarioPage() {
                   {detailModel.id} · {detailModel.category} · {detailModel.gender === "caballero" ? "Caballero" : detailModel.gender === "unisex" ? "Unisex" : "Dama"}
                 </div>
               </div>
-              {user?.role === "admin" && (
+              {(user?.role === "admin" || user?.role === "usuario") && (
                 <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                   <button className="btn btn-secondary btn-sm" onClick={openEditModel}>Editar</button>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    style={{ color: "var(--danger)" }}
-                    onClick={handleDeleteModel}
-                    disabled={submitting}
-                  >
-                    Eliminar
-                  </button>
+                  {user?.role === "admin" && (
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      style={{ color: "var(--danger)" }}
+                      onClick={handleDeleteModel}
+                      disabled={submitting}
+                    >
+                      Eliminar
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -608,6 +710,41 @@ export default function InventarioPage() {
                 <p>{errorMsg}</p>
               </div>
             )}
+
+            {/* Header for colors section with "Agregar color" button */}
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              paddingBottom: 12,
+              marginBottom: 8,
+              borderBottom: "1px solid var(--border-light)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: "var(--text-md)", fontWeight: 700 }}>
+                  Colores del modelo ({detailColors.length})
+                </span>
+                <span style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>
+                  {detailModel.type === "con_tallas" ? "Con matriz de tallas" : "Talla única"}
+                </span>
+              </div>
+              {(user?.role === "admin" || user?.role === "usuario") && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                  onClick={() => {
+                    setErrorMsg("");
+                    setSelectedNewColorIds([]);
+                    setColorModalSearch("");
+                    setShowCreateColorInline(false);
+                    setShowAddColorModal(true);
+                  }}
+                >
+                  {plusIcon} Agregar color
+                </button>
+              )}
+            </div>
 
             {/* Sin tallas info banner */}
             {detailModel.type === "sin_tallas" && (
@@ -680,6 +817,40 @@ export default function InventarioPage() {
                       );
                     })}
                   </div>
+
+                  {/* Remove color action */}
+                  {(user?.role === "admin" || user?.role === "usuario") && (
+                    <div style={{ marginLeft: "auto", display: "flex", alignItems: "center" }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{
+                          color: detailColors.length <= 1 ? "var(--text-muted)" : "var(--danger)",
+                          borderColor: "transparent",
+                          background: "transparent",
+                          padding: "6px 8px",
+                          fontSize: "var(--text-xs)",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          cursor: detailColors.length <= 1 ? "not-allowed" : "pointer",
+                        }}
+                        disabled={detailColors.length <= 1 || submitting}
+                        title={
+                          detailColors.length <= 1
+                            ? "El modelo debe tener al menos un color registrado"
+                            : `Quitar color ${color.name} (${color.code})`
+                        }
+                        onClick={() => handleRemoveColor(color.id, color.name, color.code)}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                        Quitar color
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -725,6 +896,40 @@ export default function InventarioPage() {
                     </div>
                   </div>
                   <span style={stockCellStyle(v, detailThreshold)}>{v} und</span>
+
+                  {/* Remove color action */}
+                  {(user?.role === "admin" || user?.role === "usuario") && (
+                    <div style={{ marginLeft: "auto", display: "flex", alignItems: "center" }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{
+                          color: detailColors.length <= 1 ? "var(--text-muted)" : "var(--danger)",
+                          borderColor: "transparent",
+                          background: "transparent",
+                          padding: "6px 8px",
+                          fontSize: "var(--text-xs)",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          cursor: detailColors.length <= 1 ? "not-allowed" : "pointer",
+                        }}
+                        disabled={detailColors.length <= 1 || submitting}
+                        title={
+                          detailColors.length <= 1
+                            ? "El modelo debe tener al menos un color registrado"
+                            : `Quitar color ${color.name} (${color.code})`
+                        }
+                        onClick={() => handleRemoveColor(color.id, color.name, color.code)}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                        Quitar color
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -886,6 +1091,86 @@ export default function InventarioPage() {
                   </div>
                 </div>
 
+                {/* Colors section in edit modal */}
+                <div style={{
+                  marginBottom: 20,
+                  padding: "12px 14px",
+                  background: "var(--bg-subtle)",
+                  borderRadius: 10,
+                  border: "1px solid var(--border-light)",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                    <span style={{ fontSize: "var(--text-sm)", fontWeight: 700 }}>
+                      Colores del modelo ({detailColors.length})
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: "var(--text-xs)", padding: "3px 8px" }}
+                      onClick={() => {
+                        setShowEditModal(false);
+                        setSelectedNewColorIds([]);
+                        setColorModalSearch("");
+                        setShowCreateColorInline(false);
+                        setShowAddColorModal(true);
+                      }}
+                    >
+                      + Agregar color
+                    </button>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {detailColors.map((c: any) => (
+                      <span
+                        key={c.id}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "4px 8px",
+                          borderRadius: 8,
+                          background: "#fff",
+                          border: "1px solid var(--border-light)",
+                          fontSize: "var(--text-xs)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: "50%",
+                            background: c.hex,
+                            border: "1px solid rgba(0,0,0,0.15)",
+                          }}
+                        />
+                        <span style={{ color: "var(--text-muted)", fontWeight: 700 }}>{c.code}</span>
+                        <span>{c.name}</span>
+                        {detailColors.length > 1 && (
+                          <button
+                            type="button"
+                            title={`Quitar color ${c.name} (${c.code})`}
+                            style={{
+                              border: "none",
+                              background: "none",
+                              cursor: "pointer",
+                              padding: "0 2px",
+                              color: "var(--danger)",
+                              fontSize: 14,
+                              lineHeight: 1,
+                              marginLeft: 2,
+                            }}
+                            onClick={async () => {
+                              await handleRemoveColor(c.id, c.name, c.code);
+                            }}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="modal-footer-sticky">
                   {errorMsg && <div className="alert-banner alert-banner-danger" style={{ marginBottom: 0 }}><p>{errorMsg}</p></div>}
                   <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
@@ -894,6 +1179,294 @@ export default function InventarioPage() {
                   </div>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* --- ADD COLOR TO MODEL MODAL --- */}
+        {showAddColorModal && detailModel && (
+          <div className="modal-backdrop">
+            <div className="modal" style={{ maxWidth: 520 }}>
+              <div className="modal-header">
+                <div>
+                  <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700 }}>Agregar Color al Modelo</h2>
+                  <div style={{ fontSize: "var(--text-sm)", color: "var(--text-muted)", marginTop: 2 }}>
+                    {detailModel.id} · {detailModel.name}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="modal-close"
+                  onClick={() => {
+                    setShowAddColorModal(false);
+                    setSelectedNewColorIds([]);
+                    setShowCreateColorInline(false);
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+
+              {!showCreateColorInline ? (
+                <form onSubmit={handleAddColorsToModel}>
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <label className="input-label" style={{ marginBottom: 0 }}>Seleccionar de la paleta</label>
+                      <span style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>
+                        {selectedNewColorIds.length} seleccionado(s)
+                      </span>
+                    </div>
+
+                    <input
+                      className="input"
+                      type="text"
+                      placeholder="Buscar por código o nombre (ej. Z16, Verde)..."
+                      value={colorModalSearch}
+                      onChange={(e) => setColorModalSearch(e.target.value)}
+                      style={{ marginBottom: 10 }}
+                    />
+
+                    {/* Palette swatches excluding colors already on the model */}
+                    {(() => {
+                      const existingIds = new Set(detailColors.map((dc: any) => dc.id));
+                      const availableColors = colorsDb.filter((c: any) => !existingIds.has(c.id));
+                      const filteredAvailable = availableColors.filter((c: any) => {
+                        const q = colorModalSearch.trim().toLowerCase();
+                        if (!q) return true;
+                        return `${c.code} ${c.name}`.toLowerCase().includes(q);
+                      });
+
+                      if (availableColors.length === 0) {
+                        return (
+                          <div style={{
+                            padding: "16px",
+                            textAlign: "center",
+                            background: "var(--bg-subtle)",
+                            borderRadius: 8,
+                            fontSize: "var(--text-sm)",
+                            color: "var(--text-muted)",
+                          }}>
+                            Todos los colores registrados en el sistema ya están asignados a este modelo.
+                          </div>
+                        );
+                      }
+
+                      if (filteredAvailable.length === 0) {
+                        return (
+                          <div style={{
+                            padding: "16px",
+                            textAlign: "center",
+                            background: "var(--bg-subtle)",
+                            borderRadius: 8,
+                            fontSize: "var(--text-sm)",
+                            color: "var(--text-muted)",
+                          }}>
+                            No se encontraron colores con &quot;{colorModalSearch}&quot;.
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div style={{
+                          display: "flex",
+                          gap: 8,
+                          flexWrap: "wrap",
+                          maxHeight: 220,
+                          overflowY: "auto",
+                          padding: "4px 2px",
+                        }}>
+                          {filteredAvailable.map((c: any) => {
+                            const active = selectedNewColorIds.includes(c.id);
+                            return (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => {
+                                  if (active) {
+                                    setSelectedNewColorIds(selectedNewColorIds.filter((id) => id !== c.id));
+                                  } else {
+                                    setSelectedNewColorIds([...selectedNewColorIds, c.id]);
+                                  }
+                                }}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                  padding: "6px 10px",
+                                  borderRadius: 8,
+                                  border: active ? "1.5px solid #15151A" : "1.5px solid var(--border-light)",
+                                  background: active ? "#F0EEE8" : "#fff",
+                                  cursor: "pointer",
+                                  fontSize: "var(--text-sm2)",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    width: 12,
+                                    height: 12,
+                                    borderRadius: "50%",
+                                    background: c.hex,
+                                    border: "1px solid rgba(0,0,0,.15)",
+                                  }}
+                                />
+                                <span style={{ color: "var(--text-muted)", fontWeight: 700 }}>{c.code}</span>
+                                <span>{c.name}</span>
+                                {active && (
+                                  <span style={{ fontSize: 11, color: "#15151A", marginLeft: 2 }}>✓</span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Option to create a new color in the system right here */}
+                  <div style={{
+                    padding: "10px 12px",
+                    background: "var(--bg-subtle)",
+                    borderRadius: 8,
+                    marginBottom: 16,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                  }}>
+                    <span style={{ fontSize: "var(--text-xs)", color: "var(--text-secondary)" }}>
+                      ¿El color que buscas no existe en el catálogo?
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: "var(--text-xs)", padding: "4px 8px", flexShrink: 0 }}
+                      onClick={() => setShowCreateColorInline(true)}
+                    >
+                      + Crear nuevo color
+                    </button>
+                  </div>
+
+                  <div className="modal-footer-sticky">
+                    {errorMsg && (
+                      <div className="alert-banner alert-banner-danger" style={{ marginBottom: 0 }}>
+                        <p>{errorMsg}</p>
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setShowAddColorModal(false);
+                          setSelectedNewColorIds([]);
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={submitting || selectedNewColorIds.length === 0}
+                      >
+                        {submitting
+                          ? "Agregando..."
+                          : selectedNewColorIds.length > 1
+                          ? `Agregar ${selectedNewColorIds.length} colores`
+                          : "Agregar color al modelo"}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              ) : (
+                /* Inline Create & Add New Color Form */
+                <form onSubmit={handleCreateAndAddColorInline}>
+                  <div style={{
+                    fontSize: "var(--text-sm)",
+                    color: "var(--text-muted)",
+                    marginBottom: 14,
+                  }}>
+                    Registra un nuevo color en el sistema y agrégalo directamente a este modelo.
+                  </div>
+
+                  <div className="grid-2" style={{ gap: 12, marginBottom: 12 }}>
+                    <div>
+                      <label className="input-label">Código (ej. Z35)</label>
+                      <input
+                        className="input"
+                        type="text"
+                        placeholder="Z35"
+                        value={inlineColorCode}
+                        onChange={(e) => setInlineColorCode(e.target.value.toUpperCase())}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="input-label">Nombre del color</label>
+                      <input
+                        className="input"
+                        type="text"
+                        placeholder="Verde Militar"
+                        value={inlineColorName}
+                        onChange={(e) => setInlineColorName(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 16 }}>
+                    <label className="input-label">Muestra de color (HEX)</label>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <input
+                        type="color"
+                        value={inlineColorHex}
+                        onChange={(e) => setInlineColorHex(e.target.value)}
+                        style={{
+                          width: 44,
+                          height: 38,
+                          borderRadius: 8,
+                          border: "1px solid var(--border-light)",
+                          cursor: "pointer",
+                          padding: 2,
+                        }}
+                      />
+                      <input
+                        className="input"
+                        type="text"
+                        placeholder="#15151A"
+                        value={inlineColorHex}
+                        onChange={(e) => setInlineColorHex(e.target.value)}
+                        style={{ maxWidth: 140, fontFamily: "var(--font-mono)" }}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="modal-footer-sticky">
+                    {errorMsg && (
+                      <div className="alert-banner alert-banner-danger" style={{ marginBottom: 0 }}>
+                        <p>{errorMsg}</p>
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => setShowCreateColorInline(false)}
+                      >
+                        Volver a la lista
+                      </button>
+                      <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={submitting || !inlineColorCode.trim() || !inlineColorName.trim()}
+                      >
+                        {submitting ? "Creando y asignando..." : "Crear y agregar"}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         )}
