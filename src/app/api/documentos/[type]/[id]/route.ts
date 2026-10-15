@@ -243,19 +243,19 @@ export async function GET(
         .leftJoin(skus, eq(consignmentItems.skuId, skus.id))
         .where(eq(consignmentItems.lotId, docId));
 
-      const formattedItems = itemsWithSkus.map((item) => ({
+      const formattedItems = itemsWithSkus.map((item: any) => ({
         compositeCode: item.compositeCode || "Desconocido",
         quantity: item.quantity,
         unitPrice: item.unitPrice,
       }));
 
-      const totalUnits = formattedItems.reduce((acc, it) => acc + it.quantity, 0);
-      const totalUsd = formattedItems.reduce((acc, it) => acc + (it.quantity * it.unitPrice), 0);
+      const totalUnits = formattedItems.reduce((acc: number, it: any) => acc + it.quantity, 0);
+      const totalUsd = formattedItems.reduce((acc: number, it: any) => acc + (it.quantity * it.unitPrice), 0);
 
       // 4. Rate from config
       const rateUsed =
-        config.fxOverview?.rates?.paralelo ||
-        config.fxOverview?.rates?.bcv ||
+        config.fxOverview?.current?.USD?.paralelo?.rate ||
+        config.fxOverview?.current?.USD?.bcv?.rate ||
         0;
 
       // 5. Generate PDF

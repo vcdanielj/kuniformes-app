@@ -3413,7 +3413,7 @@ export async function createConsignmentLotAction(data: {
   consigneeId: number;
   date: string;
   items: { skuId: number; quantity: number; unitPrice: number }[];
-}) {
+}): Promise<{ success: true; lotId: number | null } | { success: false; error: string }> {
   try {
     const { user } = await requireStaff();
     const userId = user.id;
