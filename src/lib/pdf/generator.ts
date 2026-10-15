@@ -937,8 +937,8 @@ export type ConsignmentLotPdfData = {
   consigneeName: string;
   consigneeContact?: string | null;
   consigneeLocation?: string | null;
-  items: { compositeCode: string; quantity: number; unitPrice: number }[];
-  totalUsd: number;
+  items: { compositeCode: string; quantity: number; unitPrice?: number }[];
+  totalUsd?: number;
   totalUnits: number;
   rateUsed?: number;
   notes?: string;
@@ -1024,10 +1024,9 @@ function drawConsignmentItemsHeader(page: PDFPage, y: number, boldFont: PDFFont)
     height: 20,
     color: cPanel,
   });
-  page.drawText("SKU / PRENDA", { x: 50, y: y + 2, size: 8.5, font: boldFont, color: cGray });
-  page.drawText("CANT. ENTREGADA", { x: 275, y: y + 2, size: 8.5, font: boldFont, color: cGray });
-  page.drawText("PRECIO UNITARIO", { x: 375, y: y + 2, size: 8.5, font: boldFont, color: cGray });
-  page.drawText("VALOR TOTAL", { x: 460, y: y + 2, size: 8.5, font: boldFont, color: cGray });
+  page.drawText("#", { x: 50, y: y + 2, size: 8.5, font: boldFont, color: cGray });
+  page.drawText("SKU / PRENDA O ARTICULO", { x: 80, y: y + 2, size: 8.5, font: boldFont, color: cGray });
+  page.drawText("CANTIDAD", { x: 475, y: y + 2, size: 8.5, font: boldFont, color: cGray });
 
   return y - 18;
 }
@@ -1096,38 +1095,35 @@ export async function generateConsignmentLotPdf(
     });
     y -= 20;
   } else {
+    let itemIndex = 1;
     for (const item of data.items) {
-      const codeLines = splitText(courierFont, item.compositeCode, 10, 215);
+      const codeLines = splitText(courierFont, item.compositeCode, 10, 375);
       const rowHeight = Math.max(16, codeLines.length * 12) + 4;
       if (y - rowHeight < PAGE_BOTTOM + 180) {
         addPage(true);
       }
 
+      page.drawText(String(itemIndex), {
+        x: 50,
+        y,
+        size: 9.5,
+        font: helveticaFont,
+        color: cGray,
+      });
+
       codeLines.forEach((line, index) => {
         page.drawText(line, {
-          x: 50,
+          x: 80,
           y: y - index * 12,
           size: 10,
           font: courierFont,
           color: cBlack,
         });
       });
-      page.drawText(String(item.quantity), {
-        x: 295,
-        y,
-        size: 10,
-        font: helveticaFont,
-        color: cBlack,
-      });
-      page.drawText(formatUSD(item.unitPrice), {
-        x: 375,
-        y,
-        size: 10,
-        font: helveticaFont,
-        color: cBlack,
-      });
-      page.drawText(formatUSD(item.quantity * item.unitPrice), {
-        x: 460,
+
+      const qtyText = `${item.quantity} und`;
+      page.drawText(qtyText, {
+        x: 475,
         y,
         size: 10,
         font: helveticaBold,
@@ -1141,6 +1137,7 @@ export async function generateConsignmentLotPdf(
         thickness: 0.5,
         color: cBorder,
       });
+      itemIndex++;
     }
   }
 
@@ -1183,10 +1180,10 @@ export async function generateConsignmentLotPdf(
     height: 84,
     color: cBlack,
   });
-  page.drawText("TOTAL PIEZAS", { x: width - 205, y: y - 10, size: 8, font: helveticaFont, color: cWhite });
-  page.drawText(`${data.totalUnits} UND`, { x: width - 205, y: y - 26, size: 13, font: helveticaBold, color: cWhite });
-  page.drawText("VALOR TOTAL USD", { x: width - 205, y: y - 44, size: 8, font: helveticaFont, color: cWhite });
-  page.drawText(formatUSD(data.totalUsd), { x: width - 205, y: y - 62, size: 14, font: helveticaBold, color: cWhite });
+  page.drawText("TOTAL ENTREGADO", { x: width - 205, y: y - 12, size: 8.5, font: helveticaFont, color: cWhite });
+  page.drawText(`${data.totalUnits} PIEZAS`, { x: width - 205, y: y - 32, size: 14, font: helveticaBold, color: cWhite });
+  page.drawText("TOTAL RENGLONES", { x: width - 205, y: y - 50, size: 8, font: helveticaFont, color: cWhite });
+  page.drawText(`${data.items.length} MODELOS / SKUS`, { x: width - 205, y: y - 66, size: 10.5, font: helveticaBold, color: cWhite });
 
   y -= 96;
 
