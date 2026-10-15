@@ -47,4 +47,7 @@ next-env.d.ts
 
 # backups
 scripts/prod-backup*
+.git.roto/
+scripts/dist/
+Reporte_Inteligencia_Comercial_KUniformes.pdf
 

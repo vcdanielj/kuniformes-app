@@ -24,6 +24,14 @@ const trashIcon = (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" /></svg>
 );
 
+const printIcon = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="6 9 6 2 18 2 18 9" />
+    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+    <rect x="6" y="14" width="12" height="8" />
+  </svg>
+);
+
 type FxSource = "paralelo" | "bcv" | "manual";
 
 const plusIcon = (
@@ -351,6 +359,12 @@ export default function ConsignacionPage() {
       setShowLotModal(false);
       setLotCart([]);
       loadData();
+      if (lotConsigneeId) {
+        setDetailConsigneeId(Number(lotConsigneeId));
+      }
+      if (res.lotId) {
+        window.open(`/api/documentos/consignacion/${res.lotId}`, "_blank");
+      }
     } else {
       setErrorMsg(res.error || "Error al registrar entrega");
     }
@@ -520,7 +534,25 @@ export default function ConsignacionPage() {
                       <div key={lot.id} style={{ border: "1px solid var(--border-light)", borderRadius: 14, padding: 16 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <span style={{ fontWeight: 700, fontSize: "var(--text-md2)" }}>Lote #{lot.id}</span>
+                            <a
+                              href={`/api/documentos/consignacion/${lot.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono"
+                              style={{
+                                fontWeight: 700,
+                                fontSize: "var(--text-md2)",
+                                color: "inherit",
+                                textDecoration: "underline",
+                                textUnderlineOffset: 3,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 6,
+                              }}
+                              title="Ver / Imprimir comprobante de entrega"
+                            >
+                              Lote #{lot.id}
+                            </a>
                             <span className="font-mono" style={{ fontSize: "var(--text-sm)", color: "var(--text-muted)" }}>{lot.date}</span>
                           </div>
                           <span className={estadoBadge(lot.status)}>{estadoLabel(lot.status)}</span>
@@ -546,6 +578,16 @@ export default function ConsignacionPage() {
                             <span style={{ color: "var(--text-muted)" }}> · Abonado {formatUSD(lot.paidUsd)}</span>
                           </div>
                           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            <a
+                              href={`/api/documentos/consignacion/${lot.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-xs btn-secondary"
+                              style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+                              title="Imprimir documento de lote entregado en consignación"
+                            >
+                              {printIcon} Imprimir
+                            </a>
                             {lot.remainingUnits > 0 && (
                               <button className="btn btn-xs btn-secondary" onClick={() => openLotActionModal(lot.id, "liquidar")}>Liquidar</button>
                             )}
@@ -1032,7 +1074,19 @@ export default function ConsignacionPage() {
 
 
               <div style={{ background: "var(--bg-subtle)", borderRadius: 8, padding: 12, marginBottom: 12, fontSize: "var(--text-sm)" }}>
-                <div>Lote: <strong>#{selectedLotDetail.id}</strong></div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <div>Lote: <strong>#{selectedLotDetail.id}</strong></div>
+                  <a
+                    href={`/api/documentos/consignacion/${selectedLotDetail.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-xs btn-secondary"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+                    title="Imprimir documento de entrega del lote"
+                  >
+                    {printIcon} Imprimir comprobante
+                  </a>
+                </div>
                 <div>Entregadas: <strong>{selectedLotDetail.deliveredUnits}</strong></div>
                 <div>Liquidadas: <strong>{selectedLotDetail.liquidatedUnits}</strong></div>
                 <div>Devueltas: <strong>{selectedLotDetail.returnedUnits}</strong></div>

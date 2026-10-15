@@ -42,6 +42,15 @@ const alertIcon = (
   </svg>
 );
 
+const pdfIcon = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="12" y1="18" x2="12" y2="12" />
+    <line x1="9" y1="15" x2="15" y2="15" />
+  </svg>
+);
+
 export default function PanelPage() {
   const user = useUser();
   const router = useRouter();
@@ -114,6 +123,92 @@ export default function PanelPage() {
             <strong>{dbData.skusCero} SKUs en cero</strong> · {dbData.despPend} despacho pendiente · {dbData.devolPend} devolución por procesar
           </p>
           <button className={styles.alertLink} onClick={() => window.location.href = "/inventario"}>Revisar →</button>
+        </div>
+      )}
+
+      {/* Executive Commercial Intelligence Banner */}
+      {user?.role === "admin" && (
+        <div
+          style={{
+            background: "linear-gradient(135deg, #101014 0%, #1A1A22 100%)",
+            border: "1px solid rgba(197, 160, 89, 0.35)",
+            borderRadius: "var(--radius-4xl)",
+            padding: "16px 20px",
+            marginBottom: "20px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "14px",
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+            <div
+              style={{
+                width: "40px",
+                height: "40px",
+                borderRadius: "10px",
+                background: "rgba(197, 160, 89, 0.15)",
+                border: "1px solid rgba(197, 160, 89, 0.3)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#C5A059",
+                flexShrink: 0,
+              }}
+            >
+              {pdfIcon}
+            </div>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#FFFFFF", letterSpacing: "-0.01em" }}>
+                  Informe Directivo de Inteligencia Comercial (BI 360°)
+                </h3>
+                <span
+                  style={{
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    padding: "2px 7px",
+                    borderRadius: "4px",
+                    background: "rgba(197, 160, 89, 0.2)",
+                    color: "#C5A059",
+                    border: "1px solid rgba(197, 160, 89, 0.4)",
+                  }}
+                >
+                  PDF 7 Págs
+                </span>
+              </div>
+              <p style={{ margin: "3px 0 0 0", fontSize: "12px", color: "#A0A09B" }}>
+                Radiografía histórica ($11.1K), Pareto 80/20, auditoría de stockouts M/S, retención de consignaciones y hoja de ruta 90 días.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => window.open("/api/reportes/inteligencia", "_blank")}
+            style={{
+              background: "#C5A059",
+              color: "#101014",
+              border: "none",
+              borderRadius: "8px",
+              padding: "9px 16px",
+              fontSize: "12.5px",
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              boxShadow: "0 2px 8px rgba(197, 160, 89, 0.3)",
+              transition: "all 0.2s ease",
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.filter = "brightness(1.1)")}
+            onMouseOut={(e) => (e.currentTarget.style.filter = "none")}
+          >
+            {pdfIcon}
+            Descargar Reporte Ejecutivo
+          </button>
         </div>
       )}
 

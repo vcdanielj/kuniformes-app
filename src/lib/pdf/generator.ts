@@ -929,3 +929,353 @@ export async function generateCatalogPdf(
 
   return await pdfDoc.save();
 }
+
+export type ConsignmentLotPdfData = {
+  lotId: number;
+  date: string;
+  status: string;
+  consigneeName: string;
+  consigneeContact?: string | null;
+  consigneeLocation?: string | null;
+  items: { compositeCode: string; quantity: number; unitPrice: number }[];
+  totalUsd: number;
+  totalUnits: number;
+  rateUsed?: number;
+  notes?: string;
+};
+
+function drawConsignmentInfoPanels(
+  page: PDFPage,
+  data: {
+    consigneeName: string;
+    consigneeContact?: string | null;
+    consigneeLocation?: string | null;
+    status: string;
+    totalUnits: number;
+  },
+  fonts: { regular: PDFFont; bold: PDFFont }
+) {
+  const { width } = page.getSize();
+  const y = page.getSize().height - PAGE_TOP - 78;
+
+  page.drawRectangle({
+    x: PAGE_MARGIN_X,
+    y: y - 52,
+    width: 250,
+    height: 60,
+    color: cPanel,
+    borderColor: cBorder,
+    borderWidth: 1,
+  });
+  page.drawRectangle({
+    x: 302,
+    y: y - 52,
+    width: width - 342,
+    height: 60,
+    color: cPanel,
+    borderColor: cBorder,
+    borderWidth: 1,
+  });
+
+  page.drawText("CONSIGNATARIA / RECEPTOR", { x: 52, y: y - 2, size: 9, font: fonts.bold, color: cGray });
+  page.drawText(data.consigneeName, { x: 52, y: y - 18, size: 11, font: fonts.bold, color: cBlack });
+  const contactText = [data.consigneeLocation, data.consigneeContact].filter(Boolean).join(" · ") || "Sin datos de contacto";
+  page.drawText(contactText, {
+    x: 52,
+    y: y - 34,
+    size: 9,
+    font: fonts.regular,
+    color: cGray,
+  });
+
+  page.drawText("DATOS DE LA ENTREGA", { x: 314, y: y - 2, size: 9, font: fonts.bold, color: cGray });
+  page.drawText("Mercancia en Consignacion", {
+    x: 314,
+    y: y - 18,
+    size: 11,
+    font: fonts.bold,
+    color: cBlack,
+  });
+  const statusLabel =
+    data.status === "liquidado"
+      ? "Liquidado"
+      : data.status === "pago_parcial"
+      ? "Pago parcial"
+      : data.status === "devuelto"
+      ? "Devuelto"
+      : "Pendiente";
+  page.drawText(`Estado: ${statusLabel} · ${data.totalUnits} piezas entregadas`, {
+    x: 314,
+    y: y - 34,
+    size: 9,
+    font: fonts.regular,
+    color: cGray,
+  });
+
+  return y - 70;
+}
+
+function drawConsignmentItemsHeader(page: PDFPage, y: number, boldFont: PDFFont) {
+  const { width } = page.getSize();
+  page.drawRectangle({
+    x: PAGE_MARGIN_X,
+    y: y - 4,
+    width: width - PAGE_MARGIN_X * 2,
+    height: 20,
+    color: cPanel,
+  });
+  page.drawText("SKU / PRENDA", { x: 50, y: y + 2, size: 8.5, font: boldFont, color: cGray });
+  page.drawText("CANT. ENTREGADA", { x: 275, y: y + 2, size: 8.5, font: boldFont, color: cGray });
+  page.drawText("PRECIO UNITARIO", { x: 375, y: y + 2, size: 8.5, font: boldFont, color: cGray });
+  page.drawText("VALOR TOTAL", { x: 460, y: y + 2, size: 8.5, font: boldFont, color: cGray });
+
+  return y - 18;
+}
+
+export async function generateConsignmentLotPdf(
+  data: ConsignmentLotPdfData,
+  options: PdfRenderOptions
+): Promise<Uint8Array> {
+  options = { ...options, brand: sanitizeBrand(options.brand) };
+  data = {
+    ...data,
+    consigneeName: sanitizePdfText(data.consigneeName),
+    consigneeContact: sanitizePdfText(data.consigneeContact || ""),
+    consigneeLocation: sanitizePdfText(data.consigneeLocation || ""),
+    notes: sanitizePdfText(data.notes || ""),
+    items: data.items.map((it) => ({ ...it, compositeCode: sanitizePdfText(it.compositeCode) })),
+  };
+
+  const pdfDoc = await PDFDocument.create();
+  const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const courierFont = await pdfDoc.embedFont(StandardFonts.Courier);
+  const imageCache = new Map<string, PDFImage | null>();
+  const logo = options.brand.logoUrl
+    ? await fetchPdfImage(pdfDoc, options.brand.logoUrl, options.baseUrl, imageCache)
+    : null;
+  const fonts = { regular: helveticaFont, bold: helveticaBold, mono: courierFont };
+  const pageSize: [number, number] = [595, 842];
+  const docTitle = "ENTREGA EN CONSIGNACION";
+  const docNumber = `LOTE #${data.lotId}`;
+  const pages: PDFPage[] = [];
+  let page = pdfDoc.addPage(pageSize);
+  let y = 0;
+
+  const addPage = (continuation = false) => {
+    page = continuation && pages.length > 0 ? pdfDoc.addPage(pageSize) : page;
+    pages.push(page);
+    const headerBottom = drawDocumentHeader(page, options.brand, fonts, logo, docTitle, docNumber, data.date, continuation);
+    if (!continuation) {
+      const panelsBottom = drawConsignmentInfoPanels(
+        page,
+        {
+          consigneeName: data.consigneeName,
+          consigneeContact: data.consigneeContact,
+          consigneeLocation: data.consigneeLocation,
+          status: data.status,
+          totalUnits: data.totalUnits,
+        },
+        fonts
+      );
+      y = drawConsignmentItemsHeader(page, panelsBottom - 4, helveticaBold);
+    } else {
+      y = drawConsignmentItemsHeader(page, headerBottom - 18, helveticaBold);
+    }
+  };
+
+  addPage(false);
+
+  if (data.items.length === 0) {
+    page.drawText("Sin articulos registrados en este lote.", {
+      x: 50,
+      y,
+      size: 10,
+      font: helveticaFont,
+      color: cGray,
+    });
+    y -= 20;
+  } else {
+    for (const item of data.items) {
+      const codeLines = splitText(courierFont, item.compositeCode, 10, 215);
+      const rowHeight = Math.max(16, codeLines.length * 12) + 4;
+      if (y - rowHeight < PAGE_BOTTOM + 180) {
+        addPage(true);
+      }
+
+      codeLines.forEach((line, index) => {
+        page.drawText(line, {
+          x: 50,
+          y: y - index * 12,
+          size: 10,
+          font: courierFont,
+          color: cBlack,
+        });
+      });
+      page.drawText(String(item.quantity), {
+        x: 295,
+        y,
+        size: 10,
+        font: helveticaFont,
+        color: cBlack,
+      });
+      page.drawText(formatUSD(item.unitPrice), {
+        x: 375,
+        y,
+        size: 10,
+        font: helveticaFont,
+        color: cBlack,
+      });
+      page.drawText(formatUSD(item.quantity * item.unitPrice), {
+        x: 460,
+        y,
+        size: 10,
+        font: helveticaBold,
+        color: cBlack,
+      });
+
+      y -= rowHeight;
+      page.drawLine({
+        start: { x: PAGE_MARGIN_X, y: y + 4 },
+        end: { x: page.getSize().width - PAGE_MARGIN_X, y: y + 4 },
+        thickness: 0.5,
+        color: cBorder,
+      });
+    }
+  }
+
+  // Check space for Summary & Signatures (~190 pts)
+  const { width } = page.getSize();
+  if (y - 190 < PAGE_BOTTOM) {
+    page = pdfDoc.addPage(pageSize);
+    pages.push(page);
+    y = drawDocumentHeader(page, options.brand, fonts, logo, docTitle, docNumber, data.date, true) - 24;
+  } else {
+    y -= 14;
+  }
+
+  // Summary box
+  page.drawRectangle({
+    x: PAGE_MARGIN_X,
+    y: y - 76,
+    width: width - 292,
+    height: 84,
+    color: cPanel,
+    borderColor: cBorder,
+    borderWidth: 1,
+  });
+  page.drawText("CONDICIONES DE LA CONSIGNACION", {
+    x: 52,
+    y: y - 2,
+    size: 8.5,
+    font: helveticaBold,
+    color: cGray,
+  });
+  const clauseText =
+    "Mercancia recibida a entera conformidad en calidad de consignacion para su custodia y comercializacion. Las prendas son propiedad de K-Uniformes hasta su efectiva liquidacion o devolucion en perfecto estado.";
+  drawWrappedText(page, helveticaFont, clauseText, 52, y - 18, width - 310, 8, cGray);
+
+  // Black Total Box
+  page.drawRectangle({
+    x: width - 220,
+    y: y - 76,
+    width: 180,
+    height: 84,
+    color: cBlack,
+  });
+  page.drawText("TOTAL PIEZAS", { x: width - 205, y: y - 10, size: 8, font: helveticaFont, color: cWhite });
+  page.drawText(`${data.totalUnits} UND`, { x: width - 205, y: y - 26, size: 13, font: helveticaBold, color: cWhite });
+  page.drawText("VALOR TOTAL USD", { x: width - 205, y: y - 44, size: 8, font: helveticaFont, color: cWhite });
+  page.drawText(formatUSD(data.totalUsd), { x: width - 205, y: y - 62, size: 14, font: helveticaBold, color: cWhite });
+
+  y -= 96;
+
+  // Signatures Section
+  const sigBoxWidth = (width - PAGE_MARGIN_X * 2 - 16) / 2;
+  const sigBoxHeight = 74;
+
+  // Box 1: Entregado por (K-Uniformes)
+  page.drawRectangle({
+    x: PAGE_MARGIN_X,
+    y: y - sigBoxHeight,
+    width: sigBoxWidth,
+    height: sigBoxHeight,
+    color: cPanel,
+    borderColor: cBorder,
+    borderWidth: 1,
+  });
+  page.drawLine({
+    start: { x: PAGE_MARGIN_X + 20, y: y - 36 },
+    end: { x: PAGE_MARGIN_X + sigBoxWidth - 20, y: y - 36 },
+    thickness: 0.8,
+    color: cGray,
+  });
+  page.drawText("ENTREGADO POR", {
+    x: PAGE_MARGIN_X + 20,
+    y: y - 46,
+    size: 8,
+    font: helveticaBold,
+    color: cBlack,
+  });
+  page.drawText(`${options.brand.name} · Firma autorizada`, {
+    x: PAGE_MARGIN_X + 20,
+    y: y - 57,
+    size: 8,
+    font: helveticaFont,
+    color: cGray,
+  });
+  page.drawText(`Fecha: ${data.date}`, {
+    x: PAGE_MARGIN_X + 20,
+    y: y - 68,
+    size: 7.5,
+    font: helveticaFont,
+    color: cGray,
+  });
+
+  // Box 2: Recibido conforme (Consignataria)
+  const sigBox2X = PAGE_MARGIN_X + sigBoxWidth + 16;
+  page.drawRectangle({
+    x: sigBox2X,
+    y: y - sigBoxHeight,
+    width: sigBoxWidth,
+    height: sigBoxHeight,
+    color: cPanel,
+    borderColor: cBorder,
+    borderWidth: 1,
+  });
+  page.drawLine({
+    start: { x: sigBox2X + 20, y: y - 36 },
+    end: { x: sigBox2X + sigBoxWidth - 20, y: y - 36 },
+    thickness: 0.8,
+    color: cGray,
+  });
+  page.drawText("RECIBIDO CONFORME", {
+    x: sigBox2X + 20,
+    y: y - 46,
+    size: 8,
+    font: helveticaBold,
+    color: cBlack,
+  });
+  page.drawText(`${data.consigneeName}`, {
+    x: sigBox2X + 20,
+    y: y - 57,
+    size: 8,
+    font: helveticaFont,
+    color: cGray,
+  });
+  page.drawText("C.I. / Firma y Sello Receptor", {
+    x: sigBox2X + 20,
+    y: y - 68,
+    size: 7.5,
+    font: helveticaFont,
+    color: cGray,
+  });
+
+  // Footers
+  pages.forEach((currentPage, index) => {
+    drawFooter(currentPage, index + 1, pages.length, helveticaFont, options.brand);
+  });
+
+  return await pdfDoc.save();
+}
+

@@ -3418,6 +3418,7 @@ export async function createConsignmentLotAction(data: {
     const { user } = await requireStaff();
     const userId = user.id;
 
+    let createdLotId: number | null = null;
     await runInTx(async (tx: any) => {
       // 1. Calculate lot total value
       const totalUsd = data.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
@@ -3434,6 +3435,7 @@ export async function createConsignmentLotAction(data: {
           paidUsd: 0,
         })
         .returning({ id: consignmentLots.id });
+      createdLotId = lotRecord.id;
 
       // 3. Process items & deduct stock
       for (const item of data.items) {
@@ -3471,7 +3473,7 @@ export async function createConsignmentLotAction(data: {
     revalidatePath("/consignacion");
     revalidatePath("/inventario");
     revalidatePath("/");
-    return { success: true };
+    return { success: true, lotId: createdLotId };
   } catch (e: any) {
     return { success: false, error: e.message || "Error al registrar lote de consignación" };
   }

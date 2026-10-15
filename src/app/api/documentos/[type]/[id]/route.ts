@@ -9,9 +9,12 @@ import {
   customers,
   skus,
   paymentMethods,
+  consignmentLots,
+  consignmentItems,
+  consignees,
 } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { generateDocumentPdf } from "@/lib/pdf/generator";
+import { generateDocumentPdf, generateConsignmentLotPdf } from "@/lib/pdf/generator";
 import { getSessionUser } from "@/lib/auth/session";
 import { getConfigData } from "@/lib/db/actions";
 
@@ -208,6 +211,75 @@ export async function GET(
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `inline; filename="${quoteRecord.number}.pdf"`,
+        },
+      });
+    } else if (type === "consignacion") {
+      // 1. Fetch Consignment Lot
+      const [lot] = await db
+        .select()
+        .from(consignmentLots)
+        .where(eq(consignmentLots.id, docId))
+        .limit(1);
+
+      if (!lot) {
+        return new Response("Lote de consignación no encontrado", { status: 404 });
+      }
+
+      // 2. Fetch Consignee
+      const [consignee] = await db
+        .select()
+        .from(consignees)
+        .where(eq(consignees.id, lot.consigneeId))
+        .limit(1);
+
+      // 3. Fetch Items with JOIN to skus
+      const itemsWithSkus = await db
+        .select({
+          compositeCode: skus.compositeCode,
+          quantity: consignmentItems.quantity,
+          unitPrice: consignmentItems.unitPrice,
+        })
+        .from(consignmentItems)
+        .leftJoin(skus, eq(consignmentItems.skuId, skus.id))
+        .where(eq(consignmentItems.lotId, docId));
+
+      const formattedItems = itemsWithSkus.map((item) => ({
+        compositeCode: item.compositeCode || "Desconocido",
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+      }));
+
+      const totalUnits = formattedItems.reduce((acc, it) => acc + it.quantity, 0);
+      const totalUsd = formattedItems.reduce((acc, it) => acc + (it.quantity * it.unitPrice), 0);
+
+      // 4. Rate from config
+      const rateUsed =
+        config.fxOverview?.rates?.paralelo ||
+        config.fxOverview?.rates?.bcv ||
+        0;
+
+      // 5. Generate PDF
+      const pdfBytes = await generateConsignmentLotPdf(
+        {
+          lotId: lot.id,
+          date: lot.date,
+          status: lot.status,
+          consigneeName: consignee?.name || "Consignataria",
+          consigneeContact: consignee?.contact,
+          consigneeLocation: consignee?.location,
+          items: formattedItems,
+          totalUsd: totalUsd || lot.totalUsd,
+          totalUnits,
+          rateUsed,
+        },
+        { brand, baseUrl: _request.url }
+      );
+      const pdfBody = Uint8Array.from(pdfBytes);
+
+      return new Response(pdfBody, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `inline; filename="LOTE-${lot.id}.pdf"`,
         },
       });
     }
